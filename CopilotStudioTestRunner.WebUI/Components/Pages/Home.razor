@@ -1,0 +1,259 @@
+@page "/"
+@using CopilotStudioTestRunner.Data
+@using CopilotStudioTestRunner.Domain.Entities
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.EntityFrameworkCore
+@using System.IO
+@using System.Text.Json
+@inject TestRunnerDbContext DbContext
+
+<PageTitle>Copilot Studio Test Runner</PageTitle>
+
+@if (showWizard)
+{
+    <!-- Wizard Mode - Full Screen -->
+    <div style="min-height: 100vh; background: linear-gradient(135deg, #0d47a1 0%, #1565c0 50%, #1976d2 100%); padding: 40px 20px;">
+        <div style="max-width: 1200px; margin: 0 auto;">
+            <div style="text-align: center; color: white; margin-bottom: 40px;">
+                <h1 style="font-size: 2.5em; margin-bottom: 10px;">
+                    <i class="bi bi-robot"></i> Copilot Studio Test Runner
+                </h1>
+                <p style="font-size: 1.2em; opacity: 0.9;">Guided Setup & Testing Wizard</p>
+            </div>
+            
+            <SetupWizard />
+            
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="btn btn-outline-light" @onclick="ExitWizard">
+                    <i class="bi bi-x-circle"></i> Exit Wizard
+                </button>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Normal Mode - Sidebar Navigation -->
+    <div style="display: flex; min-height: 100vh; background-color: #f5f5f5;">
+        <!-- Sidebar Navigation -->
+        <div style="width: 250px; background-color: #1a1a1a; color: white; position: fixed; height: 100vh; overflow-y: auto; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">
+            <div style="padding: 20px; border-bottom: 1px solid #333; text-align: center;">
+                <h5 style="margin: 0 0 5px 0; color: white; font-size: 1.2em;">
+                    <i class="bi bi-cpu"></i> Copilot Studio
+                </h5>
+                <small style="color: #aaa;">Test Runner</small>
+            </div>
+            
+            <div style="padding: 20px 0;">
+                <div class="nav-item @(currentPage == "home" ? "active" : "")" @onclick="@(() => Navigate("home"))">
+                    <i class="bi bi-house" style="width: 18px;"></i> <span>Home</span>
+                </div>
+                <div class="nav-item @(currentPage == "wizard" ? "active" : "")" @onclick="@(() => Navigate("wizard"))">
+                    <i class="bi bi-magic" style="width: 18px;"></i> <span>Quick Start Wizard</span>
+                </div>
+                <div class="nav-item @(currentPage == "settings" ? "active" : "")" @onclick="@(() => Navigate("settings"))">
+                    <i class="bi bi-gear" style="width: 18px;"></i> <span>Settings</span>
+                </div>
+                <div class="nav-item @(currentPage == "dashboard" ? "active" : "")" @onclick="@(() => Navigate("dashboard"))">
+                    <i class="bi bi-graph-up" style="width: 18px;"></i> <span>Dashboard</span>
+                </div>
+                <div class="nav-item @(currentPage == "test-suites" ? "active" : "")" @onclick="@(() => Navigate("test-suites"))">
+                    <i class="bi bi-list-check" style="width: 18px;"></i> <span>Test Suites</span>
+                </div>
+                <div class="nav-item @(currentPage == "documents" ? "active" : "")" @onclick="@(() => Navigate("documents"))">
+                    <i class="bi bi-file-earmark" style="width: 18px;"></i> <span>Documents</span>
+                </div>
+            </div>
+
+            <hr style="margin: 20px 0; border-color: #333;" />
+            <div style="padding: 0 20px; font-size: 0.9em;">
+                <div style="margin-bottom: 10px;">
+                    <strong style="color: white;">System Status</strong><br />
+                    <span style="color: #4caf50;"><i class="bi bi-circle-fill" style="font-size: 0.6em;"></i> Online</span>
+                </div>
+                <div>
+                    <strong style="color: white;">Configuration</strong><br />
+                    <span id="config-status" style="color: @(configReady ? "#4caf50" : "#ff9800");">
+                        <i class="bi bi-circle-fill" style="font-size: 0.6em;"></i> @(configReady ? "Ready" : "Pending Setup")
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div style="margin-left: 250px; width: calc(100% - 250px); display: flex; flex-direction: column;">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); color: white; padding: 20px 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="margin: 0; font-size: 1.8em;">@pageTitle</h2>
+                    <small style="color: rgba(255,255,255,0.8);">@pageDescription</small>
+                </div>
+                <div style="font-size: 2em; opacity: 0.3;">
+                    @pageIcon
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div style="flex: 1; padding: 30px; overflow-y: auto;">
+                @if (currentPage == "home")
+                {
+                    <WelcomePage />
+                }
+                else if (currentPage == "wizard")
+                {
+                    <SetupWizard />
+                }
+                else if (currentPage == "settings")
+                {
+                    <SettingsPage ConfigUpdated="@HandleConfigUpdate" />
+                }
+                else if (currentPage == "dashboard")
+                {
+                    <DashboardPage />
+                }
+                else if (currentPage == "test-suites")
+                {
+                    <TestSuitesPage />
+                }
+                else if (currentPage == "documents")
+                {
+                    <DocumentsPage />
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+.nav-item {
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    border-left: 3px solid transparent;
+    color: #ddd;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+}
+
+.nav-item:hover {
+    background-color: #333;
+    color: white;
+}
+
+.nav-item.active {
+    background-color: #0d47a1;
+    border-left-color: #1976d2;
+    color: white;
+    font-weight: 500;
+}
+
+.nav-item span {
+    display: inline-block;
+}
+</style>
+
+@code {
+    private string currentPage = "home";
+    private string pageTitle = "Welcome";
+    private string pageDescription = "Get started with Copilot Studio Test Runner";
+    private string pageIcon = "🏠";
+    private bool configReady = false;
+    private bool showWizard = false;
+    private const string CONFIG_FILE = "./data/settings.json";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if this is first time setup
+        await CheckConfiguration();
+
+        // Show wizard if no configuration exists
+        if (!configReady)
+        {
+            showWizard = true;
+        }
+    }
+
+    private void Navigate(string page)
+    {
+        currentPage = page;
+        
+        // Handle wizard navigation
+        if (page == "wizard")
+        {
+            showWizard = true;
+            return;
+        }
+        
+        showWizard = false;
+        
+        (pageTitle, pageDescription, pageIcon) = page switch
+        {
+            "home" => ("Welcome", "Get started with Copilot Studio Test Runner", "🏠"),
+            "settings" => ("Settings", "Configure all system settings and endpoints", "⚙️"),
+            "dashboard" => ("Dashboard", "View test execution metrics and statistics", "📊"),
+            "test-suites" => ("Test Suites", "Create and manage your test suites", "✅"),
+            "documents" => ("Documents", "Upload and manage documents for testing", "📄"),
+            _ => ("Welcome", "Copilot Studio Test Runner", "🏠")
+        };
+    }
+
+    private void ExitWizard()
+    {
+        showWizard = false;
+        Navigate("home");
+    }
+
+    private async Task CheckConfiguration()
+    {
+        try
+        {
+            if (File.Exists(CONFIG_FILE))
+            {
+                var json = await File.ReadAllTextAsync(CONFIG_FILE);
+                var config = JsonSerializer.Deserialize<ConfigData>(json);
+                
+                // Check if essential configuration is present
+                if (config?.DirectLine != null && 
+                    !string.IsNullOrWhiteSpace(config.DirectLine.BotId) &&
+                    !string.IsNullOrWhiteSpace(config.DirectLine.Secret) &&
+                    config.Judge != null &&
+                    !string.IsNullOrWhiteSpace(config.Judge.Endpoint) &&
+                    !string.IsNullOrWhiteSpace(config.Judge.Key))
+                {
+                    configReady = true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error checking configuration: {ex.Message}");
+        }
+    }
+
+    private async Task HandleConfigUpdate()
+    {
+        await CheckConfiguration();
+        StateHasChanged();
+    }
+
+    private class ConfigData
+    {
+        public DirectLineConfig? DirectLine { get; set; }
+        public JudgeConfig? Judge { get; set; }
+    }
+
+    private class DirectLineConfig
+    {
+        public string BotId { get; set; } = "";
+        public string Secret { get; set; } = "";
+    }
+
+    private class JudgeConfig
+    {
+        public string Endpoint { get; set; } = "";
+        public string Key { get; set; } = "";
+    }
+}
+

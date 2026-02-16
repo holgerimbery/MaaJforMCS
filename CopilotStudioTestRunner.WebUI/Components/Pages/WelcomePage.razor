@@ -1,0 +1,115 @@
+@page "/home"
+@layout MainLayout
+@using Microsoft.AspNetCore.Components.Web
+
+<div style="max-width: 1200px;">
+    <div class="row mb-4">
+        <div class="col">
+            <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3>Welcome to Copilot Studio Test Runner</h3>
+                <p style="font-size: 1.1em; color: #666; margin-bottom: 20px;">
+                    A comprehensive platform for testing and evaluating Copilot Studio Agents
+                </p>
+                <p style="color: #888; line-height: 1.6;">
+                    This application helps you create test suites, execute them against your Copilot Studio bots, 
+                    and receive AI-powered evaluation of the responses to ensure quality and consistency.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #0d47a1; margin-bottom: 20px;">
+                <h5 style="color: #0d47a1; margin-bottom: 15px;"><i class="bi bi-9-circle"></i> Getting Started</h5>
+                <ol style="color: #666; line-height: 1.8;">
+                    <li>Configure your settings (Direct Line, AI Judge endpoints)</li>
+                    <li>Create a test suite with test cases</li>
+                    <li>Upload documents if needed for context</li>
+                    <li>Run your tests and get AI-powered evaluation</li>
+                    <li>View results and metrics on the dashboard</li>
+                </ol>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #1976d2; margin-bottom: 20px;">
+                <h5 style="color: #1976d2; margin-bottom: 15px;"><i class="bi bi-lightning"></i> Features</h5>
+                <ul style="color: #666; line-height: 1.8;">
+                    <li>Direct Line bot integration</li>
+                    <li>AI-powered evaluation using Azure OpenAI</li>
+                    <li>Batch test execution</li>
+                    <li>Document processing and chunking</li>
+                    <li>Real-time metrics and reporting</li>
+                    <li>Configurable execution parameters</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                <h5 style="color: #0d47a1; margin-bottom: 20px;"><i class="bi bi-info-circle"></i> System Information</h5>
+                <table style="width: 100%; font-size: 0.95em;">
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 8px; color: #888;"><strong>Version</strong></td>
+                        <td style="padding: 8px;">1.0.0</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 8px; color: #888;"><strong>Runtime</strong></td>
+                        <td style="padding: 8px;">.NET 9.0</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 8px; color: #888;"><strong>Framework</strong></td>
+                        <td style="padding: 8px;">ASP.NET Core Blazor</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; color: #888;"><strong>Database</strong></td>
+                        <td style="padding: 8px;">SQLite 3.x</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                <h5 style="color: #1976d2; margin-bottom: 20px;"><i class="bi bi-checklist"></i> Pre-Flight Checklist</h5>
+                <div style="font-size: 0.95em; color: #666;">
+                    <div style="padding: 8px; margin-bottom: 8px;">
+                        <span style="color: #666;">□ Configure Direct Line credentials</span>
+                    </div>
+                    <div style="padding: 8px; margin-bottom: 8px;">
+                        <span style="color: #666;">□ Configure AI Judge (Azure OpenAI)</span>
+                    </div>
+                    <div style="padding: 8px; margin-bottom: 8px;">
+                        <span style="color: #666;">□ Verify bot connectivity</span>
+                    </div>
+                    <div style="padding: 8px; margin-bottom: 8px;">
+                        <span style="color: #666;">□ Create first test suite</span>
+                    </div>
+                    <div style="padding: 8px;">
+                        <span style="color: #666;">□ Run test execution</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col">
+            <div style="background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); padding: 20px; border-radius: 8px; border-left: 4px solid #7b1fa2;">
+                <h6 style="margin: 0 0 10px 0; color: #4a148c;"><i class="bi bi-lightbulb"></i> Tips</h6>
+                <p style="margin: 0; color: #6a1b9a; font-size: 0.95em;">
+                    Start by visiting the <strong>Settings</strong> page to configure your Direct Line bot credentials 
+                    and Azure AI Foundry endpoint. Once configured, create your first test suite to get started with testing.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+ol, ul {
+    padding-left: 20px;
+    margin: 0;
+}
+</style>

@@ -1,0 +1,785 @@
+@page "/test-suites"
+@layout MainLayout
+@using CopilotStudioTestRunner.Data
+@using CopilotStudioTestRunner.Domain.Entities
+@using CopilotStudioTestRunner.Domain.Configuration
+@using CopilotStudioTestRunner.Core.DirectLine
+@using CopilotStudioTestRunner.Core.Evaluation
+@using CopilotStudioTestRunner.Core.Execution
+@using CopilotStudioTestRunner.Core.Services
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@using System.IO
+
+@inject IQuestionGenerationService QuestionGenerationService
+@inject ITestExecutionService ExecutionService
+@inject IJudgeService JudgeService
+
+<div style="max-width: 1200px;">
+    <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+        <button class="btn btn-primary" @onclick="() => showNewSuiteForm = !showNewSuiteForm" style="border-radius: 4px;">
+            <i class="bi bi-plus-circle"></i> Create New Suite
+        </button>
+        <button class="btn btn-outline-secondary" @onclick="Refresh" style="border-radius: 4px;">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMsg))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+            <i class="bi bi-check-circle"></i> @successMsg
+            <button type="button" class="btn-close" @onclick="@((e) => { successMsg = null; })"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMsg))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+            <i class="bi bi-exclamation-circle"></i> @errorMsg
+            <button type="button" class="btn-close" @onclick="@((e) => { errorMsg = null; })"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(runStatusMsg))
+    {
+        <div class="alert alert-info" role="alert" style="margin-bottom: 20px;">
+            <i class="bi bi-hourglass-split"></i> @runStatusMsg
+        </div>
+    }
+
+    @if (showEditModal)
+    {
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;" @onclick="CloseEditModal">
+            <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto;" @onclick:stopPropagation="true">
+                <h4 style="color: #0d47a1; margin-bottom: 20px;">
+                    <i class="bi bi-pencil"></i> Edit Test Suite: @editingSuite?.Name
+                </h4>
+
+                <div class="mb-4">
+                    <label class="form-label" style="font-weight: 500;">Suite Name</label>
+                    <input type="text" class="form-control" @bind="editingSuiteName" />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label" style="font-weight: 500;">Description</label>
+                    <textarea class="form-control" @bind="editingSuiteDescription" rows="2"></textarea>
+                </div>
+
+                <hr />
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 style="color: #0d47a1; margin: 0;"><i class="bi bi-list-check"></i> Test Cases (@editingSuite?.TestCases?.Count ?? 0)</h5>
+                    <button type="button" class="btn btn-sm btn-primary" @onclick="ShowAddTestCaseForm">
+                        <i class="bi bi-plus-circle"></i> Add Test Case
+                    </button>
+                </div>
+
+                <div class="mb-3" style="border: 1px dashed #cfd8dc; border-radius: 6px; padding: 12px; background-color: #f8fafc;">
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <strong style="color: #0d47a1;">AI Questions</strong>
+                        <input type="number" class="form-control form-control-sm" style="width: 120px;" min="1" max="50" @bind="aiQuestionCount" />
+                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => GenerateAiQuestions(true)" disabled="@isGeneratingQuestions">
+                            <i class="bi bi-arrow-repeat"></i> Replace All
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => GenerateAiQuestions(false)" disabled="@isGeneratingQuestions">
+                            <i class="bi bi-plus"></i> Add Additional
+                        </button>
+                        @if (isGeneratingQuestions)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span style="font-size: 0.9em; color: #666;">Generating...</span>
+                        }
+                    </div>
+                    <small class="text-muted">Uses Azure OpenAI Judge settings from Step 1 (settings.json). Upload documents before generating.</small>
+                </div>
+
+                @if (showAddTestCase)
+                {
+                    <div class="alert alert-info" style="margin-bottom: 20px;">
+                        <h6><i class="bi bi-plus-circle"></i> Add New Test Case</h6>
+                        <div class="mb-2">
+                            <label class="form-label">Test Name</label>
+                            <input type="text" class="form-control" @bind="newTestCaseName" placeholder="E.g., Test greeting functionality" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">User Input (Question)</label>
+                            <input type="text" class="form-control" @bind="newTestCaseQuestion" placeholder="What question should be asked?" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Expected Answer (optional)</label>
+                            <textarea class="form-control" @bind="newTestCaseExpectedAnswer" rows="2" placeholder="What response do you expect?"></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Acceptance Criteria</label>
+                            <textarea class="form-control" @bind="newTestCaseAcceptance" rows="2" placeholder="What makes this test pass?"></textarea>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="button" class="btn btn-sm btn-success" @onclick="AddTestCase" disabled="@string.IsNullOrWhiteSpace(newTestCaseQuestion)">
+                                <i class="bi bi-check"></i> Add
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => showAddTestCase = false">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                }
+
+                @if (editingSuite?.TestCases != null && editingSuite.TestCases.Count > 0)
+                {
+                    <div style="max-height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px;">
+                        @foreach (var testCase in editingSuite.TestCases)
+                        {
+                            <div style="border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; margin-bottom: 10px; background-color: #f8f9fa;">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div style="flex: 1;">
+                                        <strong style="color: #0d47a1;">@testCase.Name</strong>
+                                        <p style="margin: 5px 0; font-size: 0.9em;"><i class="bi bi-chat-left-text"></i> @(testCase.UserInput?.FirstOrDefault() ?? testCase.Description ?? "No question")</p>
+                                        @if (!string.IsNullOrWhiteSpace(testCase.AcceptanceCriteria))
+                                        {
+                                            <small style="color: #666;"><i class="bi bi-check-circle"></i> @testCase.AcceptanceCriteria</small>
+                                        }
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteTestCase(testCase.Id)" style="margin-left: 10px;">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> No test cases yet. Add test cases to enable testing.
+                    </div>
+                }
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseEditModal">
+                        Close
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveSuiteChanges">
+                        <i class="bi bi-save"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (showNewSuiteForm)
+    {
+        <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;border-left: 4px solid #0d47a1;">
+            <h5 style="margin-bottom: 20px; color: #0d47a1;">Create New Test Suite</h5>
+            <form @onsubmit="CreateNewSuite">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label" style="font-weight: 500;">Suite Name</label>
+                            <input type="text" class="form-control" @bind="newSuiteName" placeholder="E.g., Greeting Test Suite" style="border-radius: 4px;" required />
+                        </div>
+                    </div>
+                    <div class="col-md-6"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" style="font-weight: 500;">Description</label>
+                    <textarea class="form-control" @bind="newSuiteDescription" placeholder="Describe what this test suite tests" style="border-radius: 4px; height: 80px;"></textarea>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn btn-primary" style="border-radius: 4px;">
+                        <i class="bi bi-plus"></i> Create Suite
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => showNewSuiteForm = false" style="border-radius: 4px;">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div style="text-align: center; padding: 40px;">
+            <div class="spinner-border text-primary"></div>
+            <p style="margin-top: 15px; color: #666;">Loading test suites...</p>
+        </div>
+    }
+    else if (testSuites == null || testSuites.Count == 0)
+    {
+        <div style="background: white; padding: 40px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+            <i class="bi bi-inbox" style="font-size: 3em; color: #ccc;"></i>
+            <p style="margin-top: 15px; color: #999;">No test suites yet</p>
+            <small style="color: #bbb;">Click "Create New Suite" above to get started</small>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var suite in testSuites)
+            {
+                <div class="col-md-6 mb-3">
+                    <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);  border-top: 3px solid #0d47a1;">
+                        <h6 style="color: #0d47a1; margin-bottom: 10px;">
+                            <i class="bi bi-list-check"></i> @suite.Name
+                        </h6>
+                        <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">
+                            @(string.IsNullOrWhiteSpace(suite.Description) ? "No description" : suite.Description)
+                        </p>
+                        <div style="font-size: 0.85em; color: #888; margin-bottom: 15px;">
+                            <div>Created: @suite.CreatedAt.ToString("MMM dd, yyyy")</div>
+                            <div>Total Test Cases: <strong>@(suite.TestCases?.Count ?? 0)</strong></div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-sm btn-primary" @onclick="() => RunSuite(suite.Id)" style="border-radius: 4px; font-size: 0.85em;" disabled="@isRunningSuite">
+                                @if (isRunningSuite && runningSuiteId == suite.Id)
+                                {
+                                    <span>
+                                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                        <span class="ms-1">Running...</span>
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span>
+                                        <i class="bi bi-play-circle"></i> Run
+                                    </span>
+                                }
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => EditSuite(suite.Id)" style="border-radius: 4px; font-size: 0.85em;">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteSuite(suite.Id)" style="border-radius: 4px; font-size: 0.85em;">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Inject]
+    public TestRunnerDbContext? DbContext { get; set; }
+
+    private List<TestSuite>? testSuites;
+    private bool isLoading = true;
+    private bool showNewSuiteForm = false;
+    private string newSuiteName = "";
+    private string newSuiteDescription = "";
+    private string successMsg = "";
+    private string errorMsg = "";
+    private string runStatusMsg = "";
+    private bool isRunningSuite = false;
+    private Guid? runningSuiteId;
+
+    private bool showEditModal = false;
+    private TestSuite? editingSuite;
+    private string editingSuiteName = "";
+    private string editingSuiteDescription = "";
+    private bool showAddTestCase = false;
+    private string newTestCaseName = "";
+    private string newTestCaseQuestion = "";
+    private string newTestCaseExpectedAnswer = "";
+    private string newTestCaseAcceptance = "";
+    private bool isGeneratingQuestions = false;
+    private int aiQuestionCount = 10;
+    private const string CONFIG_FILE = "./data/settings.json";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTestSuites();
+    }
+
+    private async Task LoadTestSuites()
+    {
+        try
+        {
+            if (DbContext == null) return;
+            
+            isLoading = true;
+            testSuites = await DbContext.TestSuites
+                .Include(s => s.TestCases)
+                .OrderByDescending(s => s.CreatedAt)
+                .ToListAsync();
+            isLoading = false;
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading test suites: {ex.Message}";
+            isLoading = false;
+        }
+    }
+
+    private async Task CreateNewSuite()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(newSuiteName))
+            {
+                errorMsg = "Suite name is required";
+                return;
+            }
+
+            if (DbContext == null) return;
+
+            var suite = new TestSuite
+            {
+                Id = Guid.NewGuid(),
+                Name = newSuiteName,
+                Description = newSuiteDescription ?? "",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                CreatedBy = "WebUI"
+            };
+
+            DbContext.TestSuites.Add(suite);
+            await DbContext.SaveChangesAsync();
+
+            successMsg = $"Test suite '{newSuiteName}' created successfully";
+            newSuiteName = "";
+            newSuiteDescription = "";
+            showNewSuiteForm = false;
+
+            await LoadTestSuites();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error creating test suite: {ex.Message}";
+        }
+    }
+
+    private async Task RunSuite(Guid suiteId)
+    {
+        try
+        {
+            if (DbContext == null) return;
+
+            var suite = await DbContext.TestSuites
+                .Include(s => s.TestCases)
+                .FirstOrDefaultAsync(s => s.Id == suiteId);
+            if (suite == null) return;
+
+            if (suite.TestCases == null || suite.TestCases.Count == 0)
+            {
+                errorMsg = "This test suite has no test cases to run.";
+                return;
+            }
+
+            var settings = await LoadRunSettings();
+            if (settings.DirectLine == null || settings.Judge == null)
+            {
+                errorMsg = "Missing configuration. Please complete the Setup Wizard configuration first.";
+                return;
+            }
+
+            isRunningSuite = true;
+            runningSuiteId = suiteId;
+            runStatusMsg = $"Running test suite '{suite.Name}'...";
+            successMsg = "";
+            errorMsg = "";
+            await InvokeAsync(StateHasChanged);
+
+            var dlClient = new DirectLineClient(
+                settings.DirectLine.Secret,
+                settings.DirectLine.BotId,
+                settings.DirectLine.Timeout,
+                settings.DirectLine.UseWebChannelSecret);
+
+            var judgeSettings = new JudgeSetting
+            {
+                Endpoint = settings.Judge.Endpoint,
+                ApiKey = settings.Judge.Key,
+                Model = settings.Judge.Model,
+                Temperature = settings.Judge.Temperature,
+                TopP = settings.Judge.TopP,
+                MaxOutputTokens = 4000,
+                PassThreshold = settings.Judge.PassThreshold
+            };
+
+            var dlSettings = new DirectLineSettings
+            {
+                Secret = settings.DirectLine.Secret,
+                BotId = settings.DirectLine.BotId,
+                UseWebChannelSecret = settings.DirectLine.UseWebChannelSecret,
+                UseWebSocket = settings.DirectLine.UseWebSocket,
+                ReplyTimeoutSeconds = settings.DirectLine.Timeout
+            };
+
+            var run = await ExecutionService.ExecuteTestSuiteAsync(
+                suiteId,
+                DbContext,
+                dlClient,
+                JudgeService,
+                judgeSettings,
+                dlSettings);
+
+            successMsg = $"Test suite '{suite.Name}' completed: {run.PassedCount} passed, {run.FailedCount} failed.";
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error running test suite: {ex.Message}";
+        }
+        finally
+        {
+            isRunningSuite = false;
+            runningSuiteId = null;
+            runStatusMsg = "";
+        }
+    }
+
+    private async Task DeleteSuite(Guid suiteId)
+    {
+        try
+        {
+            if (DbContext == null) return;
+
+            var suite = await DbContext.TestSuites.FindAsync(suiteId);
+            if (suite == null) return;
+
+            DbContext.TestSuites.Remove(suite);
+            await DbContext.SaveChangesAsync();
+
+            successMsg = $"Test suite deleted";
+            await LoadTestSuites();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error deleting test suite: {ex.Message}";
+        }
+    }
+
+    private async Task Refresh()
+    {
+        await LoadTestSuites();
+    }
+
+    private async Task EditSuite(Guid suiteId)
+    {
+        try
+        {
+            if (DbContext == null) return;
+
+            editingSuite = await DbContext.TestSuites
+                .Include(s => s.TestCases)
+                .FirstOrDefaultAsync(s => s.Id == suiteId);
+
+            if (editingSuite != null)
+            {
+                editingSuiteName = editingSuite.Name;
+                editingSuiteDescription = editingSuite.Description ?? "";
+                showEditModal = true;
+                showAddTestCase = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading test suite: {ex.Message}";
+        }
+    }
+
+    private void CloseEditModal()
+    {
+        showEditModal = false;
+        editingSuite = null;
+        showAddTestCase = false;
+    }
+
+    private async Task SaveSuiteChanges()
+    {
+        try
+        {
+            if (DbContext == null || editingSuite == null) return;
+
+            editingSuite.Name = editingSuiteName;
+            editingSuite.Description = editingSuiteDescription;
+            editingSuite.UpdatedAt = DateTime.UtcNow;
+
+            await DbContext.SaveChangesAsync();
+            successMsg = "Test suite updated successfully";
+            showEditModal = false;
+            await LoadTestSuites();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error saving changes: {ex.Message}";
+        }
+    }
+
+    private void ShowAddTestCaseForm()
+    {
+        showAddTestCase = true;
+        newTestCaseName = "";
+        newTestCaseQuestion = "";
+        newTestCaseExpectedAnswer = "";
+        newTestCaseAcceptance = "";
+    }
+
+    private async Task GenerateAiQuestions(bool replaceExisting)
+    {
+        try
+        {
+            if (DbContext == null || editingSuite == null) return;
+
+            isGeneratingQuestions = true;
+            errorMsg = "";
+
+            var settings = await LoadQuestionGenSettings();
+            if (string.IsNullOrWhiteSpace(settings.Endpoint) || string.IsNullOrWhiteSpace(settings.ApiKey))
+            {
+                errorMsg = "Missing Azure OpenAI settings. Configure Judge settings in the Setup Wizard first.";
+                return;
+            }
+
+            var documentContent = await BuildDocumentContent();
+            if (string.IsNullOrWhiteSpace(documentContent))
+            {
+                errorMsg = "No document content found. Upload documents before generating AI questions.";
+                return;
+            }
+
+            var existingQuestions = (editingSuite.TestCases ?? Array.Empty<TestCase>())
+                .Select(tc => tc.UserInput?.FirstOrDefault() ?? tc.Description)
+                .Where(q => !string.IsNullOrWhiteSpace(q))
+                .ToList();
+
+            var request = new QuestionGenerationRequest
+            {
+                DocumentContent = documentContent,
+                NumberOfQuestions = Math.Max(1, aiQuestionCount),
+                Domain = editingSuite.Name,
+                ExistingQuestions = replaceExisting ? null : existingQuestions
+            };
+
+            var aiQuestions = await QuestionGenerationService.GenerateQuestionsAsync(
+                request,
+                settings.Endpoint,
+                settings.ApiKey,
+                settings.Model);
+
+            if (aiQuestions.Count == 0)
+            {
+                errorMsg = "AI question generation returned no results.";
+                return;
+            }
+
+            if (replaceExisting)
+            {
+                var existing = DbContext.TestCases.Where(tc => tc.SuiteId == editingSuite.Id);
+                DbContext.TestCases.RemoveRange(existing);
+                editingSuite.TestCases?.Clear();
+            }
+
+            editingSuite.TestCases ??= new List<TestCase>();
+            var startingIndex = editingSuite.TestCases.Count + 1;
+
+            foreach (var q in aiQuestions)
+            {
+                var testCase = new TestCase
+                {
+                    Id = Guid.NewGuid(),
+                    SuiteId = editingSuite.Id,
+                    Name = $"AI Test {startingIndex++}",
+                    Description = q.Question,
+                    UserInput = new[] { q.Question },
+                    ExpectedIntent = string.IsNullOrWhiteSpace(q.ExpectedIntent) ? null : q.ExpectedIntent,
+                    ExpectedEntities = q.ExpectedEntities?.ToArray() ?? [],
+                    AcceptanceCriteria = string.IsNullOrWhiteSpace(q.Rationale)
+                        ? "Response should be relevant and accurate"
+                        : q.Rationale,
+                    ReferenceAnswer = string.IsNullOrWhiteSpace(q.ExpectedAnswer) ? null : q.ExpectedAnswer,
+                    Category = "ai-generated",
+                    Priority = 1,
+                    IsGenerated = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                editingSuite.TestCases.Add(testCase);
+                DbContext.TestCases.Add(testCase);
+            }
+
+            editingSuite.UpdatedAt = DateTime.UtcNow;
+            await DbContext.SaveChangesAsync();
+
+            successMsg = replaceExisting
+                ? $"Replaced test cases with {aiQuestions.Count} AI-generated questions"
+                : $"Added {aiQuestions.Count} AI-generated questions";
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error generating AI questions: {ex.Message}";
+        }
+        finally
+        {
+            isGeneratingQuestions = false;
+        }
+    }
+
+    private async Task<string> BuildDocumentContent()
+    {
+        if (DbContext == null) return string.Empty;
+
+        var documents = await DbContext.Documents
+            .Include(d => d.Chunks)
+            .OrderByDescending(d => d.UploadedAt)
+            .ToListAsync();
+
+        var chunks = documents
+            .SelectMany(d => d.Chunks)
+            .Select(c => c.Text)
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .ToList();
+
+        if (chunks.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var content = string.Join("\n\n---\n\n", chunks);
+        if (content.Length > 12000)
+        {
+            content = content.Substring(0, 12000) + "\n\n[Content truncated for length...]";
+        }
+
+        return content;
+    }
+
+    private async Task<(string Endpoint, string ApiKey, string Model)> LoadQuestionGenSettings()
+    {
+        try
+        {
+            if (!File.Exists(CONFIG_FILE))
+            {
+                return (string.Empty, string.Empty, string.Empty);
+            }
+
+            var json = await File.ReadAllTextAsync(CONFIG_FILE);
+            var config = JsonSerializer.Deserialize<ConfigData>(json);
+
+            if (config?.Judge == null)
+            {
+                return (string.Empty, string.Empty, string.Empty);
+            }
+
+            return (
+                config.Judge.Endpoint,
+                config.Judge.Key,
+                string.IsNullOrWhiteSpace(config.Judge.Model) ? "gpt-4o-mini" : config.Judge.Model
+            );
+        }
+        catch
+        {
+            return (string.Empty, string.Empty, string.Empty);
+        }
+    }
+
+    private async Task<ConfigData?> LoadRunSettings()
+    {
+        try
+        {
+            if (!File.Exists(CONFIG_FILE))
+            {
+                return null;
+            }
+
+            var json = await File.ReadAllTextAsync(CONFIG_FILE);
+            return JsonSerializer.Deserialize<ConfigData>(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task AddTestCase()
+    {
+        try
+        {
+            if (DbContext == null || editingSuite == null) return;
+            if (string.IsNullOrWhiteSpace(newTestCaseQuestion)) return;
+
+            var testCase = new TestCase
+            {
+                Id = Guid.NewGuid(),
+                SuiteId = editingSuite.Id,
+                Name = string.IsNullOrWhiteSpace(newTestCaseName) ? $"Test {editingSuite.TestCases.Count + 1}" : newTestCaseName,
+                Description = newTestCaseQuestion,
+                UserInput = new string[] { newTestCaseQuestion },
+                ReferenceAnswer = newTestCaseExpectedAnswer,
+                AcceptanceCriteria = string.IsNullOrWhiteSpace(newTestCaseAcceptance) 
+                    ? "Response should be relevant and accurate" 
+                    : newTestCaseAcceptance,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            editingSuite.TestCases ??= new List<TestCase>();
+            editingSuite.TestCases.Add(testCase);
+            DbContext.TestCases.Add(testCase);
+            await DbContext.SaveChangesAsync();
+
+            successMsg = "Test case added successfully";
+            showAddTestCase = false;
+            newTestCaseName = "";
+            newTestCaseQuestion = "";
+            newTestCaseExpectedAnswer = "";
+            newTestCaseAcceptance = "";
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error adding test case: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteTestCase(Guid testCaseId)
+    {
+        try
+        {
+            if (DbContext == null || editingSuite == null) return;
+
+            var testCase = await DbContext.TestCases.FindAsync(testCaseId);
+            if (testCase == null) return;
+
+            DbContext.TestCases.Remove(testCase);
+            await DbContext.SaveChangesAsync();
+
+            var tcToRemove = editingSuite.TestCases?.FirstOrDefault(tc => tc.Id == testCaseId);
+            if (tcToRemove != null)
+            {
+                editingSuite.TestCases?.Remove(tcToRemove);
+            }
+            successMsg = "Test case deleted";
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error deleting test case: {ex.Message}";
+        }
+    }
+
+    private class ConfigData
+    {
+        public DirectLineConfig? DirectLine { get; set; }
+        public JudgeConfig? Judge { get; set; }
+    }
+
+    private class DirectLineConfig
+    {
+        public string BotId { get; set; } = "";
+        public string Secret { get; set; } = "";
+        public bool UseWebChannelSecret { get; set; } = false;
+        public int Timeout { get; set; } = 30;
+        public bool UseWebSocket { get; set; } = true;
+    }
+
+    private class JudgeConfig
+    {
+        public string Endpoint { get; set; } = "";
+        public string Key { get; set; } = "";
+        public string Model { get; set; } = "gpt-4o";
+        public double Temperature { get; set; } = 0.2;
+        public double TopP { get; set; } = 0.9;
+        public double PassThreshold { get; set; } = 0.7;
+    }
+}

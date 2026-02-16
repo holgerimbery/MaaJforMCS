@@ -1,0 +1,196 @@
+@page "/documents"
+@layout MainLayout
+@using CopilotStudioTestRunner.Data
+@using CopilotStudioTestRunner.Domain.Entities
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+
+<div style="max-width: 1200px;">
+    <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+        <button class="btn btn-primary" @onclick="TriggerFileInput" style="border-radius: 4px;">
+            <i class="bi bi-cloud-arrow-up"></i> Upload Document
+        </button>
+        <button class="btn btn-outline-secondary" @onclick="Refresh" style="border-radius: 4px;">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+        <input type="file" @ref="fileInput" style="display: none;" />
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMsg))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+            <i class="bi bi-check-circle"></i> @successMsg
+            <button type="button" class="btn-close" @onclick="@((e) => { successMsg = null; })"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMsg))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+            <i class="bi bi-exclamation-circle"></i> @errorMsg
+            <button type="button" class="btn-close" @onclick="@((e) => { errorMsg = null; })"></button>
+        </div>
+    }
+
+    @if (isUploading)
+    {
+        <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; text-align: center;">
+            <div class="spinner-border text-primary mb-3"></div>
+            <p style="color: #666;">Uploading document...</p>
+            <div class="progress" style="height: 4px;">
+                <div class="progress-bar" role="progressbar" style="width: 100%; animation: pulse 1s infinite;"></div>
+            </div>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div style="text-align: center; padding: 40px;">
+            <div class="spinner-border text-primary"></div>
+            <p style="margin-top: 15px; color: #666;">Loading documents...</p>
+        </div>
+    }
+    else if (documents == null || documents.Count == 0)
+    {
+        <div style="background: white; padding: 40px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+            <i class="bi bi-file-earmark" style="font-size: 3em; color: #ccc;"></i>
+            <p style="margin-top: 15px; color: #999;">No documents uploaded</p>
+            <small style="color: #bbb;">Click "Upload Document" above to add documents for testing</small>
+        </div>
+    }
+    else
+    {
+        <div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #f5f5f5; border-bottom: 2px solid #e0e0e0;">
+                        <th style="padding: 15px; text-align: left; color: #0d47a1; font-weight: 600;">File Name</th>
+                        <th style="padding: 15px; text-align: left; color: #0d47a1; font-weight: 600;">Type</th>
+                        <th style="padding: 15px; text-align: center; color: #0d47a1; font-weight: 600;">Size</th>
+                        <th style="padding: 15px; text-align: center; color: #0d47a1; font-weight: 600;">Chunks</th>
+                        <th style="padding: 15px; text-align: left; color: #0d47a1; font-weight: 600;">Uploaded</th>
+                        <th style="padding: 15px; text-align: center; color: #0d47a1; font-weight: 600;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var doc in documents)
+                    {
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 15px; color: #333;">
+                                <i class="bi bi-file-earmark-text"></i> <strong>@doc.Name</strong>
+                            </td>
+                            <td style="padding: 15px; color: #666;">
+                                <span style="background-color: #e8e8ff; color: #4a3fa8; padding: 4px 8px; border-radius: 4px; font-size: 0.85em;">
+                                    @doc.DocumentType.ToUpper()
+                                </span>
+                            </td>
+                            <td style="padding: 15px; text-align: center; color: #666;">
+                                @FormatFileSize(doc.FileSizeBytes)
+                            </td>
+                            <td style="padding: 15px; text-align: center; color: #666;">
+                                @(doc.Chunks?.Count ?? 0)
+                            </td>
+                            <td style="padding: 15px; color: #666; font-size: 0.9em;">
+                                @doc.UploadedAt.ToString("MMM dd, yyyy HH:mm")
+                            </td>
+                            <td style="padding: 15px; text-align: center;">
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteDocument(doc.Id)" style="border-radius: 4px; font-size: 0.85em;">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 20px; padding: 15px; background-color: #f0f7ff; border-radius: 4px; border-left: 4px solid #0d47a1;">
+            <small style="color: #0d47a1;">
+                <i class="bi bi-info-circle"></i> <strong>Total:</strong> @documents.Count document(s) | 
+                <strong>Total Size:</strong> @FormatFileSize(documents.Sum(d => d.FileSizeBytes)) | 
+                <strong>Total Chunks:</strong> @documents.Sum(d => d.Chunks?.Count ?? 0)
+            </small>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public TestRunnerDbContext? DbContext { get; set; }
+
+    private List<Document>? documents;
+    private bool isLoading = true;
+    private bool isUploading = false;
+    private string successMsg = "";
+    private string errorMsg = "";
+    private ElementReference fileInput;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDocuments();
+    }
+
+    private async Task LoadDocuments()
+    {
+        try
+        {
+            if (DbContext == null) return;
+
+            isLoading = true;
+            documents = await DbContext.Documents
+                .Include(d => d.Chunks)
+                .OrderByDescending(d => d.UploadedAt)
+                .ToListAsync();
+            isLoading = false;
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading documents: {ex.Message}";
+            isLoading = false;
+        }
+    }
+
+    private async Task TriggerFileInput()
+    {
+        await fileInput.FocusAsync();
+    }
+
+    private async Task Refresh()
+    {
+        await LoadDocuments();
+    }
+
+    private async Task DeleteDocument(Guid documentId)
+    {
+        try
+        {
+            if (DbContext == null) return;
+
+            var doc = await DbContext.Documents.FindAsync(documentId);
+            if (doc == null) return;
+
+            DbContext.Documents.Remove(doc);
+            await DbContext.SaveChangesAsync();
+
+            successMsg = "Document deleted";
+            await LoadDocuments();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error deleting document: {ex.Message}";
+        }
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+}

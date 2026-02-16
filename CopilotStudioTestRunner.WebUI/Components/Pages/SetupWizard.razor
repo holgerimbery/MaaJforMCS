@@ -1,0 +1,1362 @@
+@page "/wizard"
+@layout MainLayout
+@using CopilotStudioTestRunner.Data
+@using CopilotStudioTestRunner.Domain.Entities
+@using CopilotStudioTestRunner.Domain.Configuration
+@using CopilotStudioTestRunner.Core.DirectLine
+@using CopilotStudioTestRunner.Core.Evaluation
+@using CopilotStudioTestRunner.Core.Execution
+@using CopilotStudioTestRunner.Core.DocumentProcessing
+@using CopilotStudioTestRunner.Core.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@using System.Text.Json
+@using System.IO
+@inject TestRunnerDbContext DbContext
+@inject ITestExecutionService ExecutionService
+@inject IJudgeService JudgeService
+@inject IQuestionGenerationService QuestionGenerationService
+@inject IDocumentIngestor DocumentIngestor
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<div style="max-width: 900px; margin: 0 auto;">
+    <!-- Progress Steps -->
+    <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; position: relative;">
+            @for (int i = 1; i <= 5; i++)
+            {
+                var stepNum = i;
+                var isActive = currentStep == stepNum;
+                var isComplete = currentStep > stepNum;
+                var stepColor = isComplete ? "#4caf50" : isActive ? "#0d47a1" : "#ccc";
+                
+                <div style="display: flex; flex-direction: column; align-items: center; z-index: 1;">
+                    <div style="width: 50px; height: 50px; border-radius: 50%; background-color: @stepColor; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.2em; font-weight: bold; margin-bottom: 10px;">
+                        @if (isComplete)
+                        {
+                            <i class="bi bi-check2"></i>
+                        }
+                        else
+                        {
+                            @stepNum
+                        }
+                    </div>
+                    <span style="font-size: 0.85em; color: @(isActive ? "#0d47a1" : "#666"); font-weight: @(isActive ? "600" : "normal"); text-align: center;">
+                        @GetStepTitle(stepNum)
+                    </span>
+                </div>
+                
+                @if (i < 5)
+                {
+                    <div style="flex: 1; height: 2px; background-color: @(currentStep > stepNum ? "#4caf50" : "#e0e0e0"); margin: 0 10px; margin-bottom: 35px;"></div>
+                }
+            }
+        </div>
+    </div>
+
+    <!-- Alert Messages -->
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+            <i class="bi bi-exclamation-triangle"></i> @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+            <i class="bi bi-check-circle"></i> @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+        </div>
+    }
+
+    <!-- Step Content -->
+    <div style="background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); min-height: 500px;">
+        @if (currentStep == 1)
+        {
+            <form>
+                <div style="max-width: 600px;">
+                    <h4 style="color: #0d47a1; margin-bottom: 10px;"><i class="bi bi-gear-fill"></i> Configuration Setup</h4>
+                    <p style="color: #666; margin-bottom: 30px;">Configure your bot and AI evaluation service to get started</p>
+
+                    <div class="mb-4">
+                        <h6 style="color: #0d47a1; margin-bottom: 15px;"><i class="bi bi-robot"></i> Copilot Studio Agent</h6>
+                        
+                        <div class="mb-3">
+                            <label class="form-label" style="font-weight: 500;">Bot ID <span style="color: red;">*</span></label>
+                            <input type="text" class="form-control" @bind="botId" autocomplete="off" placeholder="your-bot-id" />
+                            <small class="form-text text-muted">The unique identifier for your Copilot Studio agent (optional for web channel security)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" style="font-weight: 500;">Web Channel Security Secret <span style="color: red;">*</span></label>
+                            <input type="password" class="form-control" @bind="directLineSecret" autocomplete="new-password" placeholder="Enter your Copilot Studio web channel secret" />
+                            <small class="form-text text-muted">Your Copilot Studio web channel security secret (found under Security settings)</small>
+                        </div>
+
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="useWebChannelSecret" @bind="useWebChannelSecret" />
+                            <label class="form-check-label" for="useWebChannelSecret">
+                                Use Copilot Studio web channel security (recommended for secure conversations)
+                            </label>
+                        </div>
+
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-outline-primary" @onclick="TestChannelConnection" disabled="@isTestingConnection">
+                                @if (isTestingConnection)
+                                {
+                                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    <span> Testing...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-plug"></i>
+                                    <span> Test Connection</span>
+                                }
+                            </button>
+                        </div>
+                    </div>
+
+                    <hr style="margin: 30px 0;" />
+
+                    <div class="mb-4">
+                        <h6 style="color: #0d47a1; margin-bottom: 15px;"><i class="bi bi-cpu"></i> AI Judge Settings</h6>
+                        
+                        <div class="mb-3">
+                            <label class="form-label" style="font-weight: 500;">Endpoint URL <span style="color: red;">*</span></label>
+                            <input type="url" class="form-control" @bind="judgeEndpoint" autocomplete="off" placeholder="https://your-endpoint.openai.azure.com/" />
+                            <small class="form-text text-muted">Azure OpenAI or AI Foundry endpoint</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" style="font-weight: 500;">API Key <span style="color: red;">*</span></label>
+                            <input type="password" class="form-control" @bind="judgeApiKey" autocomplete="new-password" placeholder="Enter API key" />
+                            <small class="form-text text-muted">Your Azure OpenAI API key</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" style="font-weight: 500;">Model Name</label>
+                            <input type="text" class="form-control" @bind="judgeModel" autocomplete="off" placeholder="gpt-4o" />
+                            <small class="form-text text-muted">Model deployment name (e.g., gpt-4o, gpt-4-turbo)</small>
+                        </div>
+                    </div>
+
+                    <hr style="margin: 30px 0;" />
+
+                    <div class="mb-4">
+                        <h6 style="color: #0d47a1; margin-bottom: 15px;"><i class="bi bi-lightbulb-fill"></i> AI Question Generation (Azure OpenAI)</h6>
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="useAIQuestions" @bind="useAIQuestionGeneration" disabled="true" />
+                            <label class="form-check-label" for="useAIQuestions">
+                                <strong>AI generation is enabled</strong>
+                                <br />
+                                <small class="text-muted">
+                                    Questions will always be generated via Azure OpenAI to improve quality and coverage.
+                                </small>
+                            </label>
+                        </div>
+
+                        @if (useAIQuestionGeneration)
+                        {
+                            <div class="alert alert-warning" style="border-left: 4px solid #ff9800;">
+                                <i class="bi bi-info-circle"></i> <strong>Tip:</strong> You can use the same Azure OpenAI endpoint as your Judge settings above, or configure a separate instance.
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" style="font-weight: 500;">Azure OpenAI Endpoint <span style="color: red;">*</span></label>
+                                <input type="text" class="form-control" @bind="questionGenEndpoint" placeholder="https://your-resource.openai.azure.com" />
+                                <small class="form-text text-muted">Your Azure OpenAI service endpoint</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" style="font-weight: 500;">API Key <span style="color: red;">*</span></label>
+                                <input type="password" class="form-control" @bind="questionGenApiKey" autocomplete="new-password" placeholder="Enter API key" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" style="font-weight: 500;">Deployment/Model Name</label>
+                                <input type="text" class="form-control" @bind="questionGenModel" placeholder="gpt-4o-mini" />
+                                <small class="form-text text-muted">Your Azure OpenAI deployment name (gpt-4o-mini recommended for cost)</small>
+                            </div>
+
+                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="CopyJudgeSettings">
+                                <i class="bi bi-clipboard"></i> Copy from Judge Settings
+                            </button>
+                        }
+                    </div>
+
+                    <div class="alert alert-info" style="border-left: 4px solid #0d47a1;">
+                        <i class="bi bi-info-circle"></i> <strong>Where to find these values:</strong>
+                        <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+                            <li><strong>Bot ID & Web Channel Secret:</strong> Copilot Studio → Your Agent → Settings → Security → Web channel security (copy the secret)</li>
+                            <li><strong>Endpoint & Key:</strong> Azure Portal → Your Azure OpenAI resource → Keys and Endpoint</li>
+                            <li><strong>Note:</strong> Ensure your agent is published before testing</li>
+                        </ul>
+                    </div>
+                </div>
+            </form>
+        }
+        else if (currentStep == 2)
+        {
+            @RenderDocumentUploadStep()
+        }
+        else if (currentStep == 3)
+        {
+            @RenderQuestionGenerationStep()
+        }
+        else if (currentStep == 4)
+        {
+            @RenderAgentSelectionStep()
+        }
+        else if (currentStep == 5)
+        {
+            @RenderResultsStep()
+        }
+    </div>
+
+    <!-- Navigation Buttons -->
+    <div style="display: flex; justify-content: space-between; margin-top: 30px;">
+        @if (currentStep > 1 && currentStep < 5)
+        {
+            <button type="button" class="btn btn-outline-secondary" @onclick="PreviousStep" disabled="@isProcessing">
+                <i class="bi bi-arrow-left"></i> Previous
+            </button>
+        }
+        else
+        {
+            <div></div>
+        }
+
+        @if (currentStep < 5)
+        {
+            <button type="button" class="btn btn-primary" @onclick="NextStep" disabled="@isProcessing">
+                @if (isProcessing)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    <span> Processing...</span>
+                }
+                else
+                {
+                    <span>Next <i class="bi bi-arrow-right"></i></span>
+                }
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    private int currentStep = 1;
+    private bool isProcessing = false;
+    private bool isTestingConnection = false;
+    private string? errorMessage;
+    private string? successMessage;
+
+    // Step 1: Configuration
+    private string botId = "";
+    private string directLineSecret = "";
+    private bool useWebChannelSecret = false;
+    private string judgeEndpoint = "";
+    private string judgeApiKey = "";
+    private string judgeModel = "gpt-4o";
+    private bool useAIQuestionGeneration = true;
+    private string questionGenEndpoint = "";
+    private string questionGenApiKey = "";
+    private string questionGenModel = "gpt-4o-mini";
+    private const string CONFIG_FILE = "./data/settings.json";
+
+    // Step 2: Documents
+    private List<Document> uploadedDocuments = new();
+    private bool isUploading = false;
+
+    // Step 3: Questions
+    private List<GeneratedQuestion> generatedQuestions = new();
+    private List<bool> selectedQuestions = new();
+    private string customQuestion = "";
+    private string customExpectedAnswer = "";
+    private int questionCount = 10;
+
+    // Step 4: Agent Selection
+    private string testSuiteName = "";
+    private string testSuiteDescription = "";
+    private Guid? createdSuiteId;
+
+    // Step 5: Results
+    private Run? executedRun;
+    private List<Result>? testResults;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckExistingConfiguration();
+        await LoadDocuments();
+    }
+
+    private string GetStepTitle(int step)
+    {
+        return step switch
+        {
+            1 => "Configure",
+            2 => "Upload Docs",
+            3 => "Generate Questions",
+            4 => "Select Agent",
+            5 => "Run & Results",
+            _ => ""
+        };
+    }
+
+    private async Task CheckExistingConfiguration()
+    {
+        try
+        {
+            if (File.Exists(CONFIG_FILE))
+            {
+                var json = await File.ReadAllTextAsync(CONFIG_FILE);
+                var config = JsonSerializer.Deserialize<ConfigData>(json);
+                
+                if (config?.DirectLine != null)
+                {
+                    botId = config.DirectLine.BotId;
+                    directLineSecret = config.DirectLine.Secret;
+                    useWebChannelSecret = config.DirectLine.UseWebChannelSecret;
+                }
+                
+                if (config?.Judge != null && !string.IsNullOrWhiteSpace(config.Judge.Endpoint))
+                {
+                    judgeEndpoint = config.Judge.Endpoint;
+                    judgeApiKey = config.Judge.Key;
+                    judgeModel = config.Judge.Model ?? "gpt-4o";
+
+                    if (string.IsNullOrWhiteSpace(questionGenEndpoint))
+                    {
+                        questionGenEndpoint = judgeEndpoint;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(questionGenApiKey))
+                    {
+                        questionGenApiKey = judgeApiKey;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(questionGenModel))
+                    {
+                        questionGenModel = judgeModel;
+                    }
+                }
+
+                // If config exists and is complete, skip to step 2
+                var hasBotId = !string.IsNullOrWhiteSpace(botId);
+                var hasSecret = !string.IsNullOrWhiteSpace(directLineSecret);
+                var hasJudge = !string.IsNullOrWhiteSpace(judgeEndpoint) && !string.IsNullOrWhiteSpace(judgeApiKey);
+
+                if (hasSecret && hasJudge && (useWebChannelSecret || hasBotId))
+                {
+                    currentStep = 2;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error checking configuration: {ex.Message}");
+        }
+    }
+
+    private async Task LoadDocuments()
+    {
+        try
+        {
+            uploadedDocuments = await DbContext.Documents
+                .Include(d => d.Chunks)
+                .OrderByDescending(d => d.UploadedAt)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading documents: {ex.Message}";
+        }
+    }
+
+    private bool CanProceedToNextStep()
+    {
+        return currentStep switch
+        {
+              1 => !string.IsNullOrWhiteSpace(directLineSecret) &&
+                  (useWebChannelSecret || !string.IsNullOrWhiteSpace(botId)) &&
+                  !string.IsNullOrWhiteSpace(judgeEndpoint) && !string.IsNullOrWhiteSpace(judgeApiKey),
+            2 => uploadedDocuments.Count > 0,
+            3 => generatedQuestions.Count > 0 && selectedQuestions.Any(s => s),
+            4 => !string.IsNullOrWhiteSpace(testSuiteName),
+            _ => true
+        };
+    }
+
+    private async Task NextStep()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (!CanProceedToNextStep())
+        {
+            errorMessage = currentStep switch
+            {
+                1 => "Please fill in all configuration fields",
+                2 => "Please upload at least one document",
+                3 => "Please select at least one question",
+                4 => "Please enter a test suite name",
+                _ => "Cannot proceed to next step"
+            };
+            return;
+        }
+
+        if (currentStep == 1)
+        {
+            await SaveConfiguration();
+        }
+        else if (currentStep == 4)
+        {
+            await CreateTestSuite();
+            if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                return;
+            }
+
+            await ExecuteTests();
+            return; // Don't increment step, ExecuteTests will do it
+        }
+
+        if (string.IsNullOrEmpty(errorMessage))
+        {
+            currentStep++;
+        }
+    }
+
+    private async Task TestChannelConnection()
+    {
+        errorMessage = null;
+        successMessage = null;
+        isTestingConnection = true;
+
+        try
+        {
+            var dlClient = new DirectLineClient(
+                directLineSecret,
+                botId,
+                30,
+                useWebChannelSecret);
+
+            // Start conversation
+            var conversationId = await dlClient.StartConversationAsync();
+            if (string.IsNullOrEmpty(conversationId))
+            {
+                throw new InvalidOperationException("Failed to obtain conversation ID from agent");
+            }
+
+            // Send test message
+            await dlClient.SendActivityAsync(conversationId, "Hello");
+
+            // Wait for response
+            var response = await dlClient.GetActivitiesAsync(conversationId);
+            var responseActivities = response.activities
+                .Where(a => a.Type == "message" && a.From?.Id != "user")
+                .ToList();
+
+            if (responseActivities.Count == 0)
+            {
+                throw new InvalidOperationException("Agent did not respond to test message. Ensure your agent is published and working correctly.");
+            }
+
+            successMessage = $"✓ Connection successful! Agent responded.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Connection test failed: {ex.Message}";
+        }
+        finally
+        {
+            isTestingConnection = false;
+        }
+    }
+
+    private void PreviousStep()
+    {
+        if (currentStep > 1)
+        {
+            currentStep--;
+            errorMessage = null;
+            successMessage = null;
+        }
+    }
+
+    // STEP 2: Document Upload
+    private async Task SaveConfiguration()
+    {
+        try
+        {
+            var configData = new ConfigData
+            {
+                DirectLine = new DirectLineConfig
+                {
+                    BotId = botId,
+                    Secret = directLineSecret,
+                    UseWebChannelSecret = useWebChannelSecret,
+                    Timeout = 30,
+                    UseWebSocket = true
+                },
+                Judge = new JudgeConfig
+                {
+                    Endpoint = judgeEndpoint,
+                    Key = judgeApiKey,
+                    Model = judgeModel,
+                    Temperature = 0.2,
+                    TopP = 0.9,
+                    PassThreshold = 0.7
+                }
+            };
+
+            var configDir = Path.GetDirectoryName(CONFIG_FILE);
+            if (!string.IsNullOrEmpty(configDir))
+            {
+                Directory.CreateDirectory(configDir);
+            }
+
+            var json = JsonSerializer.Serialize(configData, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(CONFIG_FILE, json);
+
+            successMessage = "✓ Configuration saved successfully!";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to save configuration: {ex.Message}";
+        }
+    }
+
+    // STEP 2: Document Upload
+    private RenderFragment RenderDocumentUploadStep() => __builder =>
+    {
+        <div>
+            <h4 style="color: #0d47a1; margin-bottom: 10px;"><i class="bi bi-file-earmark-arrow-up"></i> Upload Documents</h4>
+            <p style="color: #666; margin-bottom: 30px;">
+                Upload documents containing information about your bot's capabilities and knowledge
+            </p>
+
+            <div style="text-align: center; padding: 40px; border: 2px dashed #0d47a1; border-radius: 8px; background-color: #f8f9fa; margin-bottom: 30px;">
+                <i class="bi bi-cloud-upload" style="font-size: 3em; color: #0d47a1;"></i>
+                <h5 style="margin: 20px 0 10px 0;">Upload Your Documents</h5>
+                <p style="color: #666; margin-bottom: 20px;">PDF, TXT, or MD files up to 10MB</p>
+                
+                <InputFile OnChange="HandleFileUpload" accept=".pdf,.txt,.md" multiple class="d-none" id="fileUpload" />
+                <label for="fileUpload" class="btn btn-primary" style="cursor: pointer;">
+                    @if (isUploading)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                        <span> Uploading...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-upload"></i>
+                        <span> Choose Files</span>
+                    }
+                </label>
+            </div>
+
+            @if (uploadedDocuments.Count > 0)
+            {
+                <h6 style="margin-bottom: 15px;">Uploaded Documents (@uploadedDocuments.Count)</h6>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-hover">
+                        <thead style="position: sticky; top: 0; background-color: white;">
+                            <tr>
+                                <th><i class="bi bi-file-text"></i> Name</th>
+                                <th>Type</th>
+                                <th>Chunks</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var doc in uploadedDocuments)
+                            {
+                                <tr>
+                                    <td style="font-weight: 500;">@doc.Name</td>
+                                    <td><span class="badge bg-secondary">@doc.DocumentType</span></td>
+                                    <td>@doc.Chunks.Count</td>
+                                    <td style="font-size: 0.9em; color: #666;">@doc.UploadedAt.ToString("MMM dd, yyyy")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> No documents uploaded yet. Please upload at least one document to proceed.
+                </div>
+            }
+        </div>
+    };
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        errorMessage = null;
+        isUploading = true;
+        
+        try
+        {
+            var files = e.GetMultipleFiles(10); // Max 10 files
+
+            foreach (var file in files)
+            {
+                if (file.Size > 10 * 1024 * 1024) // 10MB
+                {
+                    errorMessage = $"File {file.Name} is too large (max 10MB)";
+                    continue;
+                }
+
+                var tempPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+                await using var stream = file.OpenReadStream(10 * 1024 * 1024);
+                await using var fileStream = File.Create(tempPath);
+                await stream.CopyToAsync(fileStream);
+                fileStream.Close();
+
+                // Process document
+                var fileExt = Path.GetExtension(file.Name).ToLower();
+                var docType = fileExt == ".pdf" ? "pdf" : "text";
+                
+                string text;
+                int pageCount;
+                await using (var readStream = File.OpenRead(tempPath))
+                {
+                    (text, pageCount) = await DocumentIngestor.ExtractTextAsync(readStream, docType);
+                }
+
+                var doc = new Document
+                {
+                    Id = Guid.NewGuid(),
+                    Name = file.Name,
+                    DocumentType = docType,
+                    ContentHash = Guid.NewGuid().ToString(),
+                    UploadedAt = DateTime.UtcNow,
+                    FileSizeBytes = file.Size,
+                    StoragePath = tempPath,
+                    Chunks = new List<Chunk>()
+                };
+                
+                // Create simple chunks (split by paragraphs)
+                var paragraphs = text.Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries);
+                if (paragraphs.Length <= 1)
+                {
+                    paragraphs = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                }
+                for (int i = 0; i < paragraphs.Length; i++)
+                {
+                    if (string.IsNullOrWhiteSpace(paragraphs[i])) continue;
+                    doc.Chunks.Add(new Chunk
+                    {
+                        Id = Guid.NewGuid(),
+                        DocumentId = doc.Id,
+                        Text = paragraphs[i].Trim(),
+                        TokenCount = paragraphs[i].Length / 4,
+                        ChunkIndex = i
+                    });
+                }
+                
+                DbContext.Documents.Add(doc);
+                File.Delete(tempPath);
+            }
+
+            await DbContext.SaveChangesAsync();
+            await LoadDocuments();
+            
+            successMessage = $"✓ Uploaded {files.Count} document(s) successfully!";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Upload failed: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    // STEP 3: Question Generation
+    private RenderFragment RenderQuestionGenerationStep() => __builder =>
+    {
+        <div>
+            <h4 style="color: #0d47a1; margin-bottom: 10px;"><i class="bi bi-question-circle"></i> Generate Test Questions</h4>
+            <p style="color: #666; margin-bottom: 30px;">
+                Generate questions from your uploaded documents to test your agent
+            </p>
+
+            @if (generatedQuestions.Count == 0)
+            {
+                <div style="text-align: center; padding: 40px;">
+                    <div class="mb-4">
+                        <label class="form-label" style="font-weight: 500;">Number of Questions to Generate</label>
+                        <input type="number" class="form-control" @bind="questionCount" min="5" max="50" style="max-width: 200px; margin: 0 auto;" />
+                    </div>
+                    
+                    <button type="button" class="btn btn-primary btn-lg" @onclick="GenerateQuestions" disabled="@isProcessing">
+                        @if (isProcessing)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                            <span> Generating...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-stars"></i>
+                            <span> Generate Questions</span>
+                        }
+                    </button>
+                    
+                    <p style="color: #666; margin-top: 15px; font-size: 0.9em;">
+                        Questions will be generated based on content from @uploadedDocuments.Count document(s)
+                    </p>
+                </div>
+            }
+            else
+            {
+                <div class="mb-3" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h6>Generated Questions (@selectedQuestions.Count(s => s) selected)</h6>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="SelectAllQuestions">
+                            <i class="bi bi-check-all"></i> Select All
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2" @onclick="() => { generatedQuestions.Clear(); selectedQuestions.Clear(); }">
+                            <i class="bi bi-arrow-clockwise"></i> Regenerate
+                        </button>
+                    </div>
+                </div>
+
+                <div style="max-height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px;">
+                    @for (int i = 0; i < generatedQuestions.Count; i++)
+                    {
+                        var index = i;
+                        var question = generatedQuestions[i];
+                        
+                        <div class="form-check mb-3" style="padding: 15px; background-color: @(selectedQuestions[index] ? "#e3f2fd" : "#f8f9fa"); border-radius: 6px; border: 2px solid @(selectedQuestions[index] ? "#0d47a1" : "transparent");">
+                            <input class="form-check-input" type="checkbox" id="q@index" @bind="selectedQuestions[index]" style="margin-top: 5px;" />
+                            <label class="form-check-label" for="q@index" style="cursor: pointer; width: 100%;">
+                                <strong style="color: #0d47a1;">Q@(index + 1):</strong> @question.Question
+                                @if (!string.IsNullOrWhiteSpace(question.ExpectedAnswer))
+                                {
+                                    <div style="margin-top: 8px; padding-left: 20px; font-size: 0.9em; color: #666;">
+                                        <i class="bi bi-arrow-return-right"></i> <em>Expected: @question.ExpectedAnswer</em>
+                                    </div>
+                                }
+                            </label>
+                        </div>
+                    }
+                </div>
+
+                <hr style="margin: 20px 0;" />
+
+                <div>
+                    <h6 style="margin-bottom: 15px;">Add Custom Question</h6>
+                    <div class="mb-2">
+                        <input type="text" class="form-control" @bind="customQuestion" placeholder="Enter your question..." />
+                    </div>
+                    <div class="mb-2">
+                        <input type="text" class="form-control" @bind="customExpectedAnswer" placeholder="Expected answer (optional)..." />
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddCustomQuestion" disabled="@string.IsNullOrWhiteSpace(customQuestion)">
+                        <i class="bi bi-plus-circle"></i> Add Question
+                    </button>
+                </div>
+            }
+        </div>
+    };
+
+    private async Task GenerateQuestions()
+    {
+        errorMessage = null;
+        isProcessing = true;
+        generatedQuestions.Clear();
+        selectedQuestions.Clear();
+
+        try
+        {
+            await GenerateQuestionsWithAI();
+
+            if (generatedQuestions.Count == 0 && string.IsNullOrWhiteSpace(errorMessage))
+            {
+                errorMessage = "Could not generate questions from the document content.";
+            }
+            else
+            {
+                successMessage = $"✓ Generated {generatedQuestions.Count} questions successfully using Azure OpenAI!";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error generating questions: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task GenerateQuestionsWithAI()
+    {
+        // Validate configuration
+        if (string.IsNullOrWhiteSpace(questionGenEndpoint) || string.IsNullOrWhiteSpace(questionGenApiKey))
+        {
+            errorMessage = "Please configure Azure OpenAI endpoint and API key for AI question generation in Step 1.";
+            return;
+        }
+
+        // Collect document content
+        var documentContent = string.Join("\n\n---\n\n", 
+            uploadedDocuments.SelectMany(d => d.Chunks.Select(c => c.Text)));
+
+        if (string.IsNullOrWhiteSpace(documentContent))
+        {
+            errorMessage = "No content found in documents. Please upload documents with text content.";
+            return;
+        }
+
+        // Truncate if too long (Azure OpenAI has token limits)
+        if (documentContent.Length > 12000)
+        {
+            documentContent = documentContent.Substring(0, 12000) + "\n\n[Content truncated for length...]";
+        }
+
+        // Call AI service
+        var request = new QuestionGenerationRequest
+        {
+            DocumentContent = documentContent,
+            NumberOfQuestions = Math.Max(1, questionCount),
+            Domain = string.IsNullOrWhiteSpace(testSuiteName) ? null : testSuiteName
+        };
+
+        var aiQuestions = await QuestionGenerationService.GenerateQuestionsAsync(
+            request,
+            questionGenEndpoint,
+            questionGenApiKey,
+            questionGenModel
+        );
+
+        if (aiQuestions.Count == 0)
+        {
+            errorMessage = "Azure OpenAI returned no questions. Check your model deployment name and document content.";
+            return;
+        }
+
+        // Convert to our format
+        foreach (var q in aiQuestions)
+        {
+            generatedQuestions.Add(new GeneratedQuestion
+            {
+                Question = q.Question,
+                ExpectedAnswer = q.ExpectedAnswer,
+                ExpectedIntent = q.ExpectedIntent,
+                ExpectedEntities = q.ExpectedEntities?.ToArray(),
+                Source = "AI Generated"
+            });
+            selectedQuestions.Add(true);
+        }
+    }
+
+    private async Task GenerateQuestionsRuleBased()
+    {
+        // Get all document chunks
+        var allChunks = uploadedDocuments
+            .SelectMany(d => d.Chunks)
+            .OrderBy(c => Guid.NewGuid())
+            .Take(Math.Min(50, uploadedDocuments.Sum(d => d.Chunks.Count)))
+            .ToList();
+
+        if (!allChunks.Any())
+        {
+            errorMessage = "No content found in documents.";
+            return;
+        }
+
+        var candidates = new List<string>();
+        foreach (var chunk in allChunks)
+        {
+            candidates.AddRange(ExtractCandidateSentences(chunk.Text));
+        }
+
+        candidates = candidates.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        if (candidates.Count == 0)
+        {
+            errorMessage = "Could not find suitable sentences in the documents.";
+            return;
+        }
+
+        var random = new Random();
+        var questionsToGenerate = Math.Max(1, questionCount);
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var attempts = 0;
+
+        while (generatedQuestions.Count < questionsToGenerate && attempts < questionsToGenerate * 5)
+        {
+            attempts++;
+            var sentence = candidates[random.Next(candidates.Count)];
+            var questionText = BuildQuestion(sentence, generatedQuestions.Count);
+            
+            if (!used.Add(questionText))
+            {
+                continue;
+            }
+
+            var expectedAnswer = sentence.Length > 200 
+                ? sentence.Substring(0, 200) + "..." 
+                : sentence;
+                
+            generatedQuestions.Add(new GeneratedQuestion
+            {
+                Question = questionText,
+                ExpectedAnswer = expectedAnswer,
+                Source = "Rule-based"
+            });
+            selectedQuestions.Add(true);
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private void CopyJudgeSettings()
+    {
+        questionGenEndpoint = judgeEndpoint;
+        questionGenApiKey = judgeApiKey;
+        questionGenModel = judgeModel;
+        successMessage = "✓ Copied Judge settings to Question Generation configuration";
+    }
+
+    private static readonly string[] StopWords =
+    [
+        "the", "and", "for", "with", "that", "this", "from", "into", "about", "your",
+        "you", "are", "was", "were", "can", "will", "have", "has", "had", "but", "not",
+        "use", "using", "used", "also", "may", "should", "must", "their", "them", "they",
+        "our", "your", "its", "there", "here", "where", "when", "what", "which", "who"
+    ];
+
+    private IEnumerable<string> ExtractCandidateSentences(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            yield break;
+        }
+
+        var split = System.Text.RegularExpressions.Regex.Split(text, "(?<=[.!?])\\s+");
+        foreach (var raw in split)
+        {
+            var sentence = raw.Trim();
+            if (IsLowValueSentence(sentence))
+            {
+                continue;
+            }
+
+            yield return sentence;
+        }
+    }
+
+    private bool IsLowValueSentence(string sentence)
+    {
+        if (string.IsNullOrWhiteSpace(sentence)) return true;
+
+        var trimmed = sentence.Trim().Trim('-', '*', '"', '\'', '_');
+        if (trimmed.Length < 30) return true;
+
+        var lower = trimmed.ToLowerInvariant();
+        if (lower.StartsWith("thank you") || lower.StartsWith("welcome") || lower.StartsWith("page ")) return true;
+        if (lower.Contains("all rights reserved") || lower.Contains("table of contents")) return true;
+        if (lower.Contains("http://") || lower.Contains("https://")) return true;
+
+        var wordCount = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        if (wordCount < 6 || wordCount > 40) return true;
+
+        return false;
+    }
+
+    private string BuildQuestion(string sentence, int index)
+    {
+        var starters = new[]
+        {
+            "What does the document say about",
+            "Explain the concept of",
+            "Summarize",
+            "How does the document describe",
+            "What is the purpose of"
+        };
+
+        var phrase = ExtractKeyPhrase(sentence);
+        var starter = starters[index % starters.Length];
+        return $"{starter} {phrase}?";
+    }
+
+    private string ExtractKeyPhrase(string sentence)
+    {
+        var cleaned = System.Text.RegularExpressions.Regex.Replace(sentence, "[^a-zA-Z0-9\\s-]", "");
+        var words = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var keyWords = words
+            .Where(w => w.Length >= 4 && !StopWords.Contains(w.ToLowerInvariant()))
+            .Take(6)
+            .ToList();
+
+        if (keyWords.Count == 0)
+        {
+            var fallback = sentence.Trim();
+            if (fallback.Length > 60)
+            {
+                fallback = fallback.Substring(0, 60) + "...";
+            }
+            return fallback.TrimEnd('.', '!', '?');
+        }
+
+        return string.Join(" ", keyWords).TrimEnd('.', '!', '?');
+    }
+
+    private void SelectAllQuestions()
+    {
+        for (int i = 0; i < selectedQuestions.Count; i++)
+        {
+            selectedQuestions[i] = true;
+        }
+    }
+
+    private void AddCustomQuestion()
+    {
+        if (!string.IsNullOrWhiteSpace(customQuestion))
+        {
+            generatedQuestions.Add(new GeneratedQuestion
+            {
+                Question = customQuestion,
+                ExpectedAnswer = customExpectedAnswer ?? "",
+                Source = "Manual"
+            });
+            selectedQuestions.Add(true);
+
+            customQuestion = "";
+            customExpectedAnswer = "";
+        }
+    }
+
+    // STEP 4: Agent Selection
+    private RenderFragment RenderAgentSelectionStep() => __builder =>
+    {
+        <div>
+            <h4 style="color: #0d47a1; margin-bottom: 10px;"><i class="bi bi-robot"></i> Name Your Test Suite</h4>
+            <p style="color: #666; margin-bottom: 30px;">
+                Create a test suite with the selected questions to test your agent
+            </p>
+
+            <div class="mb-4">
+                <label class="form-label" style="font-weight: 500;">Test Suite Name <span style="color: red;">*</span></label>
+                <input type="text" class="form-control" @bind="testSuiteName" placeholder="E.g., Product Knowledge Test" />
+                <small class="form-text text-muted">A descriptive name for this test suite</small>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label" style="font-weight: 500;">Description</label>
+                <textarea class="form-control" @bind="testSuiteDescription" rows="3" placeholder="Describe what this test suite covers..."></textarea>
+            </div>
+
+            <div class="alert alert-info" style="border-left: 4px solid #0d47a1;">
+                <h6 style="margin-bottom: 10px;"><i class="bi bi-info-circle"></i> Test Suite Summary</h6>
+                <ul style="margin: 0; padding-left: 20px;">
+                    <li><strong>Selected Questions:</strong> @selectedQuestions.Count(s => s)</li>
+                    <li><strong>Agent to Test:</strong> @(string.IsNullOrWhiteSpace(botId) ? "Not set" : botId)</li>
+                    <li><strong>Evaluation Model:</strong> @judgeModel</li>
+                </ul>
+            </div>
+
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 20px;">
+                <h6 style="margin-bottom: 15px;">What happens next?</h6>
+                <ol style="margin: 0; padding-left: 20px;">
+                    <li>A test suite will be created with your selected questions</li>
+                    <li>Each question will be sent to your agent <strong>@botId</strong></li>
+                    <li>Responses will be evaluated by AI for accuracy and helpfulness</li>
+                    <li>You'll see detailed results with pass/fail verdicts</li>
+                </ol>
+            </div>
+        </div>
+    };
+
+    private async Task CreateTestSuite()
+    {
+        try
+        {
+            var trimmedName = string.IsNullOrWhiteSpace(testSuiteName)
+                ? $"Wizard Suite {DateTime.UtcNow:yyyy-MM-dd HH:mm}"
+                : testSuiteName.Trim();
+
+            // Create test suite
+            var suite = new TestSuite
+            {
+                Id = Guid.NewGuid(),
+                Name = trimmedName,
+                Description = testSuiteDescription?.Trim() ?? "",
+                CreatedBy = "Wizard",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                TestCases = new List<TestCase>()
+            };
+
+            // Add selected questions as test cases
+            var selectedQs = generatedQuestions
+                .Where((q, i) => selectedQuestions[i])
+                .ToList();
+
+            foreach (var question in selectedQs)
+            {
+                var testCase = new TestCase
+                {
+                    Id = Guid.NewGuid(),
+                    SuiteId = suite.Id,
+                    Name = $"Q{suite.TestCases.Count + 1}",
+                    Description = question.Question,
+                    UserInput = new string[] { question.Question },
+                    AcceptanceCriteria = !string.IsNullOrWhiteSpace(question.ExpectedAnswer)
+                        ? $"Response should contain information about: {question.ExpectedAnswer}"
+                        : "Response should be relevant and helpful",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                suite.TestCases.Add(testCase);
+            }
+
+            DbContext.TestSuites.Add(suite);
+            await DbContext.SaveChangesAsync();
+
+            // Store suite ID for execution
+            createdSuiteId = suite.Id;
+            executedRun = null;
+            
+            successMessage = $"✓ Test suite created with {suite.TestCases.Count} questions!";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error creating test suite: {ex.Message}";
+        }
+    }
+
+    // STEP 5: Execution & Results
+    private RenderFragment RenderResultsStep() => __builder =>
+    {
+        <div>
+            <h4 style="color: #0d47a1; margin-bottom: 10px;"><i class="bi bi-check2-circle"></i> Test Results</h4>
+            <p style="color: #666; margin-bottom: 30px;">
+                Your agent has been tested with the selected questions
+            </p>
+
+            @if (executedRun != null && testResults != null)
+            {
+                var passedCount = testResults.Count(r => r.Verdict == "pass");
+                var failedCount = testResults.Count(r => r.Verdict == "fail");
+                var passRate = testResults.Count > 0 ? (100.0 * passedCount / testResults.Count) : 0;
+
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div style="background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%); color: white; padding: 20px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 2em; font-weight: bold;">@passedCount</div>
+                            <div style="font-size: 0.9em; opacity: 0.9;">Passed</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div style="background: linear-gradient(135deg, #f44336 0%, #ef5350 100%); color: white; padding: 20px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 2em; font-weight: bold;">@failedCount</div>
+                            <div style="font-size: 0.9em; opacity: 0.9;">Failed</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div style="background: linear-gradient(135deg, #2196f3 0%, #42a5f5 100%); color: white; padding: 20px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 2em; font-weight: bold;">@(passRate.ToString("F1"))%</div>
+                            <div style="font-size: 0.9em; opacity: 0.9;">Pass Rate</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div style="background: linear-gradient(135deg, #ff9800 0%, #ffa726 100%); color: white; padding: 20px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 2em; font-weight: bold;">@((int)testResults.Average(r => r.LatencyMs))</div>
+                            <div style="font-size: 0.9em; opacity: 0.9;">Avg Latency (ms)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <h6 style="margin-bottom: 15px;">Detailed Results</h6>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    @foreach (var result in testResults)
+                    {
+                        var testCase = DbContext.TestCases.Find(result.TestCaseId);
+                        var badgeColor = result.Verdict == "pass" ? "success" : "danger";
+                        var icon = result.Verdict == "pass" ? "check-circle-fill" : "x-circle-fill";
+
+                        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 15px; background-color: white;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                                <div style="flex: 1;">
+                                    <strong style="color: #0d47a1;">@testCase?.Description</strong>
+                                </div>
+                                <span class="badge bg-@badgeColor">
+                                    <i class="bi bi-@icon"></i> @result.Verdict.ToUpper()
+                                </span>
+                            </div>
+                            
+                            @if (!string.IsNullOrWhiteSpace(result.JudgeRationale))
+                            {
+                                <div style="font-size: 0.9em; color: #666; margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+                                    <i class="bi bi-chat-left-quote"></i> @result.JudgeRationale
+                                </div>
+                            }
+
+                            <div style="margin-top: 10px; font-size: 0.85em; color: #999;">
+                                Score: @(((result.OverallScore ?? 0) * 100).ToString("F1"))% | 
+                                Latency: @result.LatencyMs ms | 
+                                Tokens: @result.TokensUsed
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div style="text-align: center; margin-top: 30px;">
+                    <button type="button" class="btn btn-primary" @onclick="@(() => NavigationManager.NavigateTo("/", true))">
+                        <i class="bi bi-house"></i> Back to Dashboard
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="text-center" style="padding: 60px 20px;">
+                    <div class="spinner-border text-primary" role="status" style="width: 4rem; height: 4rem;">
+                        <span class="visually-hidden">Testing...</span>
+                    </div>
+                    <h5 style="margin-top: 20px;">Testing your agent...</h5>
+                    <p style="color: #666;">This may take a few minutes depending on the number of questions.</p>
+                </div>
+            }
+        </div>
+    };
+
+    private async Task ExecuteTests()
+    {
+        errorMessage = null;
+        isProcessing = true;
+        currentStep = 5; // Move to results step
+        StateHasChanged();
+
+        try
+        {
+            // Load configuration
+            var json = await File.ReadAllTextAsync(CONFIG_FILE);
+            var config = JsonSerializer.Deserialize<ConfigData>(json);
+
+            if (config?.DirectLine == null || config.Judge == null)
+            {
+                errorMessage = "Configuration error. Please reconfigure.";
+                return;
+            }
+
+            // Get the suite we created
+            if (!createdSuiteId.HasValue)
+            {
+                errorMessage = "Test suite not found. Please recreate the suite in Step 4.";
+                return;
+            }
+
+            var suiteId = createdSuiteId.Value;
+            var suite = await DbContext.TestSuites
+                .Include(s => s.TestCases)
+                .FirstOrDefaultAsync(s => s.Id == suiteId);
+
+            if (suite == null)
+            {
+                errorMessage = "Test suite not found.";
+                return;
+            }
+
+            // Create Direct Line client
+            var dlClient = new DirectLineClient(
+                config.DirectLine.Secret,
+                config.DirectLine.BotId,
+                config.DirectLine.Timeout,
+                config.DirectLine.UseWebChannelSecret);
+
+            // Create judge settings
+            var judgeSettings = new JudgeSetting
+            {
+                Endpoint = config.Judge.Endpoint,
+                ApiKey = config.Judge.Key,
+                Model = config.Judge.Model,
+                Temperature = config.Judge.Temperature,
+                TopP = config.Judge.TopP,
+                MaxOutputTokens = 4000,
+                PassThreshold = config.Judge.PassThreshold
+            };
+
+            var dlSettings = new DirectLineSettings
+            {
+                Secret = config.DirectLine.Secret,
+                BotId = config.DirectLine.BotId,
+                UseWebChannelSecret = config.DirectLine.UseWebChannelSecret,
+                UseWebSocket = config.DirectLine.UseWebSocket,
+                ReplyTimeoutSeconds = config.DirectLine.Timeout
+            };
+
+            // Execute test suite
+            executedRun = await ExecutionService.ExecuteTestSuiteAsync(
+                suiteId,
+                DbContext,
+                dlClient,
+                JudgeService,
+                judgeSettings,
+                dlSettings
+            );
+
+            // Load results
+            testResults = await DbContext.Results
+                .Where(r => r.RunId == executedRun.Id)
+                .ToListAsync();
+
+            successMessage = $"✓ Testing complete! {executedRun.PassedCount} passed, {executedRun.FailedCount} failed.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error executing tests: {ex.Message}";
+            Console.WriteLine($"Execution error: {ex}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    // Helper classes
+    private class GeneratedQuestion
+    {
+        public string Question { get; set; } = "";
+        public string ExpectedAnswer { get; set; } = "";
+        public string Source { get; set; } = "";
+        public string? ExpectedIntent { get; set; }
+        public string[]? ExpectedEntities { get; set; }
+    }
+
+    private class ConfigData
+    {
+        public DirectLineConfig? DirectLine { get; set; }
+        public JudgeConfig? Judge { get; set; }
+    }
+
+    private class DirectLineConfig
+    {
+        public string BotId { get; set; } = "";
+        public string Secret { get; set; } = "";
+        public bool UseWebChannelSecret { get; set; } = false;
+        public int Timeout { get; set; } = 30;
+        public bool UseWebSocket { get; set; } = true;
+    }
+
+    private class JudgeConfig
+    {
+        public string Endpoint { get; set; } = "";
+        public string Key { get; set; } = "";
+        public string Model { get; set; } = "gpt-4o";
+        public double Temperature { get; set; } = 0.2;
+        public double TopP { get; set; } = 0.9;
+        public double PassThreshold { get; set; } = 0.7;
+    }
+}

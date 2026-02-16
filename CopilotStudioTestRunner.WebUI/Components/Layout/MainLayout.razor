@@ -1,0 +1,196 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@implements IDisposable
+@using System.IO
+@using System.Text.Json
+
+<div style="display: flex; min-height: 100vh;">
+    <!-- Sidebar Navigation -->
+    <div style="width: 250px; background-color: #1a1a1a; color: white; position: fixed; height: 100vh; overflow-y: auto;">
+        <div style="padding: 20px; border-bottom: 1px solid #333; text-align: center;">
+            <h5 style="margin: 0 0 5px 0; color: white;">Copilot Studio</h5>
+            <small style="color: #aaa;">Test Runner</small>
+        </div>
+        
+        <div style="padding: 20px 0;">
+            <div class="nav-item @(currentPage == "home" ? "active" : "")" @onclick="@(() => SelectPage("home"))">
+                <i class="bi bi-house"></i> Home
+            </div>
+            <div class="nav-item @(currentPage == "wizard" ? "active" : "")" @onclick="@(() => SelectPage("wizard"))">
+                <i class="bi bi-magic"></i> Quick Start Wizard
+            </div>
+            <div class="nav-item @(currentPage == "settings" ? "active" : "")" @onclick="@(() => SelectPage("settings"))">
+                <i class="bi bi-gear"></i> Settings
+            </div>
+            <div class="nav-item @(currentPage == "dashboard" ? "active" : "")" @onclick="@(() => SelectPage("dashboard"))">
+                <i class="bi bi-graph-up"></i> Dashboard
+            </div>
+            <div class="nav-item @(currentPage == "test-suites" ? "active" : "")" @onclick="@(() => SelectPage("test-suites"))">
+                <i class="bi bi-list-check"></i> Test Suites
+            </div>
+            <div class="nav-item @(currentPage == "documents" ? "active" : "")" @onclick="@(() => SelectPage("documents"))">
+                <i class="bi bi-file-earmark"></i> Documents
+            </div>
+        </div>
+
+        <hr style="margin: 20px 0; border-color: #333;" />
+        <div style="padding: 0 20px; font-size: 0.9em; color: #aaa;">
+            <div style="margin-bottom: 10px;">
+                <strong>System Status</strong><br />
+                <span style="color: #4caf50;">● Online</span>
+            </div>
+            <div>
+                <strong>Configuration</strong><br />
+                <span id="config-status" style="color: @(isConfigured ? "#4caf50" : "#ff9800");">● @(isConfigured ? "Configured" : "Pending Setup")</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div style="margin-left: 250px; width: calc(100% - 250px); display: flex; flex-direction: column;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); color: white; padding: 20px 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h2 style="margin: 0; font-size: 1.8em;">@pageTitle</h2>
+            <small style="color: rgba(255,255,255,0.8);">@pageDescription</small>
+        </div>
+
+        <!-- Content -->
+        <div style="flex: 1; padding: 30px; overflow-y: auto;">
+            @Body
+        </div>
+    </div>
+</div>
+
+<style>
+.nav-item {
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    border-left: 3px solid transparent;
+    color: #ddd;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nav-item:hover {
+    background-color: #333;
+    color: white;
+}
+
+.nav-item.active {
+    background-color: #0d47a1;
+    border-left-color: #1976d2;
+    color: white;
+}
+</style>
+
+@code {
+    private string currentPage = "home";
+    private string pageTitle = "Welcome";
+    private string pageDescription = "Copilot Studio Test Runner - AI Assistant Testing Platform";
+    private bool isConfigured = false;
+    private const string CONFIG_FILE = "./data/settings.json";
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        UpdateCurrentPageFromUrl();
+        CheckConfiguration();
+    }
+
+    private void CheckConfiguration()
+    {
+        try
+        {
+            if (File.Exists(CONFIG_FILE))
+            {
+                var json = File.ReadAllText(CONFIG_FILE);
+                var doc = JsonDocument.Parse(json);
+                
+                // Check if required settings exist
+                if (doc.RootElement.TryGetProperty("DirectLine", out var dl) && 
+                    doc.RootElement.TryGetProperty("Judge", out var judge))
+                {
+                    var hasBotId = dl.TryGetProperty("BotId", out var botId) && !string.IsNullOrEmpty(botId.GetString());
+                    var hasEndpoint = judge.TryGetProperty("Endpoint", out var endpoint) && !string.IsNullOrEmpty(endpoint.GetString());
+                    isConfigured = hasBotId && hasEndpoint;
+                }
+            }
+        }
+        catch
+        {
+            isConfigured = false;
+        }
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        UpdateCurrentPageFromUrl();
+        StateHasChanged();
+    }
+
+    private void UpdateCurrentPageFromUrl()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var path = uri.AbsolutePath.TrimStart('/');
+        
+        currentPage = path switch
+        {
+            "" or "home" => "home",
+            "wizard" => "wizard",
+            "settings" => "settings",
+            "dashboard" => "dashboard",
+            "test-suites" => "test-suites",
+            "documents" => "documents",
+            _ => "home"
+        };
+
+        pageTitle = currentPage switch
+        {
+            "home" => "Welcome",
+            "wizard" => "Quick Start Wizard",
+            "settings" => "Settings",
+            "dashboard" => "Dashboard",
+            "test-suites" => "Test Suites",
+            "documents" => "Documents",
+            _ => "Welcome"
+        };
+        
+        pageDescription = currentPage switch
+        {
+            "home" => "Get started with Copilot Studio Test Runner",
+            "wizard" => "Guided setup and testing workflow",
+            "settings" => "Configure all system settings and endpoints",
+            "dashboard" => "View test execution metrics and statistics",
+            "test-suites" => "Create and manage test suites",
+            "documents" => "Upload and manage documents for testing",
+            _ => ""
+        };
+        
+        // Re-check configuration when navigating (especially from settings page)
+        CheckConfiguration();
+    }
+
+    private void SelectPage(string page)
+    {
+        var route = page switch
+        {
+            "home" => "/home",
+            "wizard" => "/wizard",
+            "settings" => "/settings",
+            "dashboard" => "/dashboard",
+            "test-suites" => "/test-suites",
+            "documents" => "/documents",
+            _ => "/home"
+        };
+        
+        Navigation.NavigateTo(route);
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}
+

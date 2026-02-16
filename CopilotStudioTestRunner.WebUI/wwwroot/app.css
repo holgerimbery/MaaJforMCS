@@ -1,0 +1,89 @@
+html, body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.loading-progress {
+    height: 6px;
+    width: 100%;
+    top: 0;
+    left: 0;
+    position: fixed;
+    z-index: 9999;
+}
+
+.loading-progress circle {
+    fill: none;
+    stroke: #0d6efd;
+    stroke-dasharray: 628;
+    stroke-dashoffset: 0;
+    stroke-width: 3px;
+    stroke-linecap: round;
+    animation: progress 2s infinite;
+}
+
+.loading-progress-text {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #333;
+    font-size: 18px;
+    font-weight: 500;
+}
+
+@keyframes progress {
+    0% {
+        stroke-dashoffset: 628;
+    }
+    50% {
+        stroke-dashoffset: 0;
+    }
+    100% {
+        stroke-dashoffset: -628;
+    }
+}
+
+.card {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+    border: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.dashboard {
+    padding: 20px 0;
+}
+
+.btn-primary, .btn-info, .btn-secondary {
+    border-radius: 4px;
+}
+
+.table-sm td, .table-sm th {
+    padding: 0.5rem;
+}
+
+.badge {
+    padding: 0.35rem 0.65rem;
+    border-radius: 3px;
+}
+
+.navbar {
+    background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%) !important;
+}
+
+.navbar-brand {
+    font-size: 1.5rem;
+    font-weight: 600;
+}

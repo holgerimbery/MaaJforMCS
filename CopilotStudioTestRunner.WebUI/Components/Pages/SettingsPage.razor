@@ -1,0 +1,695 @@
+@page "/settings"
+@layout MainLayout
+@using Microsoft.AspNetCore.Components.Web
+@using System.Text.Json
+@using System.IO
+@using CopilotStudioTestRunner.Core.DirectLine
+@using CopilotStudioTestRunner.Core.Evaluation
+@using CopilotStudioTestRunner.Domain.Entities
+@using Serilog
+
+<div style="max-width: 1000px;">
+    @if (!string.IsNullOrEmpty(successMsg))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+            <i class="bi bi-check-circle"></i> @successMsg
+            <button type="button" class="btn-close" @onclick="@((e) => { successMsg = null; })"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMsg))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+            <i class="bi bi-exclamation-circle"></i> @errorMsg
+            <button type="button" class="btn-close" @onclick="@((e) => { errorMsg = null; })"></button>
+        </div>
+    }
+
+    <!-- Tab Navigation -->
+    <div style="background: white; border-bottom: 1px solid #e0e0e0; margin-bottom: 20px; border-radius: 8px 8px 0 0;">
+        <div style="display: flex; gap: 5px; padding: 12px 20px;">
+            <button class="tab-btn @(tab == 0 ? "active" : "")" @onclick="() => { tab = 0; ClearMessages(); }">
+                <i class="bi bi-link-45deg"></i> Direct Line
+            </button>
+            <button class="tab-btn @(tab == 1 ? "active" : "")" @onclick="() => { tab = 1; ClearMessages(); }">
+                <i class="bi bi-cpu"></i> AI Judge
+            </button>
+            <button class="tab-btn @(tab == 2 ? "active" : "")" @onclick="() => { tab = 2; ClearMessages(); }">
+                <i class="bi bi-sliders"></i> Execution
+            </button>
+            <button class="tab-btn @(tab == 3 ? "active" : "")" @onclick="() => { tab = 3; ClearMessages(); }">
+                <i class="bi bi-hdd-rack"></i> Storage
+            </button>
+        </div>
+    </div>
+
+    <!-- Tab 0: Direct Line Configuration -->
+    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 0 ? "block" : "none");">
+        <h5 style="margin-bottom: 20px; color: #0d47a1;"><i class="bi bi-link-45deg"></i> Copilot Studio Connection</h5>
+        <p style="color: #666; margin-bottom: 20px;">Configure your Copilot Studio agent connection settings</p>
+        
+        <form @onsubmit="SaveDirectLine">
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">Bot ID</label>
+                <input type="text" class="form-control" @bind="dlBotId" placeholder="example-bot-id" style="border-radius: 4px;" />
+                <small class="form-text text-muted">The unique identifier for your Copilot Studio bot</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">Channel Secret</label>
+                <input type="password" class="form-control" @bind="dlSecret" placeholder="Enter your web channel or Direct Line secret" style="border-radius: 4px;" />
+                <small class="form-text text-muted">Use the web channel security secret or Direct Line secret</small>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" @bind="dlUseWebChannelSecret" id="dlWebChannelSecret" />
+                    <label class="form-check-label" for="dlWebChannelSecret">Use web channel secret (token per conversation)</label>
+                </div>
+                <small class="form-text text-muted">Enable this when using Web channel security secrets</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">Reply Timeout (seconds)</label>
+                <input type="number" class="form-control" @bind="dlTimeout" min="5" max="300" style="border-radius: 4px;" />
+                <small class="form-text text-muted">Maximum time to wait for bot response (5-300 seconds)</small>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" @bind="dlUseWebSocket" id="dlWebSocket" />
+                    <label class="form-check-label" for="dlWebSocket">Use WebSocket Transport</label>
+                </div>
+                <small class="form-text text-muted">Enable WebSocket for real-time communication</small>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 25px;">
+                <button type="submit" class="btn btn-primary" style="border-radius: 4px;">
+                    <i class="bi bi-save"></i> Save Configuration
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="TestDirectLine" style="border-radius: 4px;">
+                    <i class="bi bi-shuffle"></i> Test Connection
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tab 1: AI Judge Configuration -->
+    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 1 ? "block" : "none");">
+        <h5 style="margin-bottom: 20px; color: #0d47a1;"><i class="bi bi-cpu"></i> AI Judge Configuration</h5>
+        <p style="color: #666; margin-bottom: 20px;">Configure Azure OpenAI endpoint for AI-powered evaluation</p>
+        
+        <form @onsubmit="SaveJudge">
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">Endpoint URL</label>
+                <input type="url" class="form-control" @bind="judgeEndpoint" placeholder="https://resource.openai.azure.com/" style="border-radius: 4px;" />
+                <small class="form-text text-muted">Your Azure AI Foundry or OpenAI endpoint</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">API Key</label>
+                <input type="password" class="form-control" @bind="judgeKey" placeholder="Enter your API key" style="border-radius: 4px;" />
+                <small class="form-text text-muted">Your Azure OpenAI API key (keep this secure)</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">Model Name</label>
+                <input type="text" class="form-control" @bind="judgeModel" placeholder="gpt-4o-mini" style="border-radius: 4px;" />
+                <small class="form-text text-muted">The deployment name or model ID (e.g., gpt-4-turbo, gpt-4o-mini)</small>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-weight: 500;">Temperature</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="range" class="form-range" @bind="judgeTemp" min="0" max="2" step="0.1" style="flex: 1;" />
+                            <span style="min-width: 40px; color: #666;">@judgeTemp.ToString("F1")</span>
+                        </div>
+                        <small class="form-text text-muted">Creative (0=precise, 2=varied)</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-weight: 500;">Top P</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="range" class="form-range" @bind="judgeTopP" min="0" max="1" step="0.05" style="flex: 1;" />
+                            <span style="min-width: 40px; color: #666;">@judgeTopP.ToString("F2")</span>
+                        </div>
+                        <small class="form-text text-muted">Diversity (0=focused, 1=diverse)</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">Pass Threshold</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="range" class="form-range" @bind="judgePassThreshold" min="0" max="1" step="0.05" style="flex: 1;" />
+                    <span style="min-width: 60px; color: #666;">@(judgePassThreshold * 100).ToString("F0")%</span>
+                </div>
+                <small class="form-text text-muted">Minimum score (0-100%) for test to pass</small>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 25px;">
+                <button type="submit" class="btn btn-primary" style="border-radius: 4px;">
+                    <i class="bi bi-save"></i> Save Configuration
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="TestJudge" style="border-radius: 4px;">
+                    <i class="bi bi-play-circle"></i> Test Connection
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tab 2: Execution Configuration -->
+    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 2 ? "block" : "none");">
+        <h5 style="margin-bottom: 20px; color: #0d47a1;"><i class="bi bi-sliders"></i> Execution Configuration</h5>
+        <p style="color: #666; margin-bottom: 20px;">Configure test execution behavior and performance parameters</p>
+        
+        <form @onsubmit="SaveExecution">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-weight: 500;">Max Concurrent Tests</label>
+                        <input type="number" class="form-control" @bind="execMaxConcurrency" min="1" max="50" style="border-radius: 4px;" />
+                        <small class="form-text text-muted">Number of tests to run in parallel (1-50)</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-weight: 500;">Rate Limit (per minute)</label>
+                        <input type="number" class="form-control" @bind="execRateLimit" min="1" max="1000" style="border-radius: 4px;" />
+                        <small class="form-text text-muted">Maximum requests per minute</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-weight: 500;">Max Retries</label>
+                        <input type="number" class="form-control" @bind="execRetries" min="0" max="10" style="border-radius: 4px;" />
+                        <small class="form-text text-muted">Retry failed tests (0-10 times)</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-weight: 500;">Backoff Time (seconds)</label>
+                        <input type="number" class="form-control" @bind="execBackoff" min="1" max="60" style="border-radius: 4px;" />
+                        <small class="form-text text-muted">Wait time before retry</small>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 25px;">
+                <button type="submit" class="btn btn-primary" style="border-radius: 4px;">
+                    <i class="bi bi-save"></i> Save Configuration
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tab 3: Storage Configuration -->
+    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 3 ? "block" : "none");">
+        <h5 style="margin-bottom: 20px; color: #0d47a1;"><i class="bi bi-hdd-rack"></i> Storage Configuration</h5>
+        <p style="color: #666; margin-bottom: 20px;">Configure storage paths for database, indexes, and uploads</p>
+        
+        <form @onsubmit="SaveStorage">
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">SQLite Database Path</label>
+                <input type="text" class="form-control" @bind="storageSqlite" placeholder="./data/app.db" style="border-radius: 4px;" />
+                <small class="form-text text-muted">Path to SQLite database file</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">Lucene Index Path</label>
+                <input type="text" class="form-control" @bind="storageIndex" placeholder="./data/index" style="border-radius: 4px;" />
+                <small class="form-text text-muted">Path to Lucene search index directory</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">Document Upload Path</label>
+                <input type="text" class="form-control" @bind="storageUpload" placeholder="./data/uploads" style="border-radius: 4px;" />
+                <small class="form-text text-muted">Path to store uploaded documents</small>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 25px;">
+                <button type="submit" class="btn btn-primary" style="border-radius: 4px;">
+                    <i class="bi bi-save"></i> Save Configuration
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.tab-btn {
+    background: transparent;
+    border: none;
+    color: #666;
+    padding: 12px 20px;
+    cursor: pointer;
+    font-weight: 500;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tab-btn:hover {
+    color: #0d47a1;
+    background-color: #f5f5f5;
+}
+
+.tab-btn.active {
+    color: #0d47a1;
+    border-bottom-color: #0d47a1;
+}
+
+.form-label {
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.form-control {
+    border: 1px solid #ddd;
+    padding: 8px 12px;
+    font-size: 0.95em;
+}
+
+.form-control:focus {
+    border-color: #0d47a1;
+    box-shadow: 0 0 0 3px rgba(13, 71, 161, 0.1);
+}
+
+.btn-primary {
+    background-color: #0d47a1;
+    border-color: #0d47a1;
+}
+
+.btn-primary:hover {
+    background-color: #1565c0;
+    border-color: #1565c0;
+}
+
+.form-range {
+    cursor: pointer;
+}
+</style>
+
+@code {
+    [Parameter]
+    public EventCallback ConfigUpdated { get; set; }
+
+    private int tab = 0;
+    private string successMsg = "";
+    private string errorMsg = "";
+
+    // Direct Line
+    private string dlBotId = "";
+    private string dlSecret = "";
+    private int dlTimeout = 30;
+    private bool dlUseWebSocket = true;
+    private bool dlUseWebChannelSecret = false;
+
+    // Judge
+    private string judgeEndpoint = "";
+    private string judgeKey = "";
+    private string judgeModel = "gpt-4o-mini";
+    private double judgeTemp = 0.2;
+    private double judgeTopP = 0.9;
+    private double judgePassThreshold = 0.7;
+
+    // Execution
+    private int execMaxConcurrency = 5;
+    private int execRateLimit = 50;
+    private int execRetries = 2;
+    private int execBackoff = 4;
+
+    // Storage
+    private string storageSqlite = "./data/app.db";
+    private string storageIndex = "./data/index";
+    private string storageUpload = "./data/uploads";
+
+    private const string CONFIG_FILE = "./data/settings.json";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConfiguration();
+    }
+
+    private async Task LoadConfiguration()
+    {
+        try
+        {
+            if (File.Exists(CONFIG_FILE))
+            {
+                var json = await File.ReadAllTextAsync(CONFIG_FILE);
+                var config = JsonSerializer.Deserialize<ConfigData>(json);
+                if (config != null)
+                {
+                    dlBotId = config.DirectLine?.BotId ?? "";
+                    dlSecret = config.DirectLine?.Secret ?? "";
+                    dlTimeout = config.DirectLine?.Timeout ?? 30;
+                    dlUseWebSocket = config.DirectLine?.UseWebSocket ?? true;
+                    dlUseWebChannelSecret = config.DirectLine?.UseWebChannelSecret ?? false;
+
+                    judgeEndpoint = config.Judge?.Endpoint ?? "";
+                    judgeKey = config.Judge?.Key ?? "";
+                    judgeModel = config.Judge?.Model ?? "gpt-4o-mini";
+                    judgeTemp = config.Judge?.Temperature ?? 0.2;
+                    judgeTopP = config.Judge?.TopP ?? 0.9;
+                    judgePassThreshold = config.Judge?.PassThreshold ?? 0.7;
+
+                    execMaxConcurrency = config.Execution?.MaxConcurrency ?? 5;
+                    execRateLimit = config.Execution?.RateLimit ?? 50;
+                    execRetries = config.Execution?.Retries ?? 2;
+                    execBackoff = config.Execution?.Backoff ?? 4;
+
+                    storageSqlite = config.Storage?.Sqlite ?? "./data/app.db";
+                    storageIndex = config.Storage?.Index ?? "./data/index";
+                    storageUpload = config.Storage?.Upload ?? "./data/uploads";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading configuration: {ex.Message}";
+        }
+    }
+
+    private async Task SaveConfiguration()
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(CONFIG_FILE);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            var config = new ConfigData
+            {
+                DirectLine = new DirectLineConfig
+                {
+                    BotId = dlBotId,
+                    Secret = dlSecret,
+                    Timeout = dlTimeout,
+                    UseWebSocket = dlUseWebSocket,
+                    UseWebChannelSecret = dlUseWebChannelSecret
+                },
+                Judge = new JudgeConfig { Endpoint = judgeEndpoint, Key = judgeKey, Model = judgeModel, Temperature = judgeTemp, TopP = judgeTopP, PassThreshold = judgePassThreshold },
+                Execution = new ExecutionConfig { MaxConcurrency = execMaxConcurrency, RateLimit = execRateLimit, Retries = execRetries, Backoff = execBackoff },
+                Storage = new StorageConfig { Sqlite = storageSqlite, Index = storageIndex, Upload = storageUpload }
+            };
+
+            var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(CONFIG_FILE, json);
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error saving configuration: {ex.Message}";
+        }
+    }
+
+    private async Task SaveDirectLine()
+    {
+        if (string.IsNullOrWhiteSpace(dlBotId) || string.IsNullOrWhiteSpace(dlSecret))
+        {
+            errorMsg = "Bot ID and Secret are required";
+            return;
+        }
+        await SaveConfiguration();
+        successMsg = "✓ Direct Line settings saved successfully";
+        await ConfigUpdated.InvokeAsync();
+        ClearMessages(3000);
+    }
+
+    private async Task SaveJudge()
+    {
+        if (string.IsNullOrWhiteSpace(judgeEndpoint) || string.IsNullOrWhiteSpace(judgeKey))
+        {
+            errorMsg = "Endpoint and API Key are required";
+            return;
+        }
+        await SaveConfiguration();
+        successMsg = "✓ Judge settings saved successfully";
+        await ConfigUpdated.InvokeAsync();
+        ClearMessages(3000);
+    }
+
+    private async Task SaveExecution()
+    {
+        await SaveConfiguration();
+        successMsg = "✓ Execution settings saved successfully";
+        await ConfigUpdated.InvokeAsync();
+        ClearMessages(3000);
+    }
+
+    private async Task SaveStorage()
+    {
+        await SaveConfiguration();
+        successMsg = "✓ Storage settings saved successfully";
+        await ConfigUpdated.InvokeAsync();
+        ClearMessages(3000);
+    }
+
+    private async Task TestDirectLine()
+    {
+        if (string.IsNullOrWhiteSpace(dlSecret) || (!dlUseWebChannelSecret && string.IsNullOrWhiteSpace(dlBotId)))
+        {
+            errorMsg = "Please enter the secret and Bot ID (Bot ID optional for web channel secret)";
+            return;
+        }
+        try
+        {
+            var logger = Log.ForContext<SettingsPage>();
+            logger.Information("TestDirectLine: Starting test. UseWebChannelSecret={UseWebChannelSecret}", dlUseWebChannelSecret);
+            
+            var client = new DirectLineClient(dlSecret, dlBotId, dlTimeout, dlUseWebChannelSecret);
+            
+            // Start conversation
+            logger.Information("TestDirectLine: Calling StartConversationAsync");
+            var conversationId = await client.StartConversationAsync();
+            logger.Information("TestDirectLine: Got conversation ID: {ConversationId}", conversationId);
+            
+            if (string.IsNullOrEmpty(conversationId))
+            {
+                throw new InvalidOperationException("Failed to obtain conversation ID from agent");
+            }
+
+            // Send test message
+            logger.Information("TestDirectLine: Sending test message 'Hello' to conversation {ConversationId}", conversationId);
+            await client.SendActivityAsync(conversationId, "Hello");
+            logger.Information("TestDirectLine: Message sent successfully");
+
+            // Wait for response with timeout - poll until we get a response
+            logger.Information("TestDirectLine: Polling for agent response (up to {TimeoutSeconds} seconds)...", dlTimeout);
+            var responseActivities = new List<Activity>();
+            var watermark = string.Empty;
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var pollInterval = 500; // 500ms between polls
+            
+            while (stopwatch.ElapsedMilliseconds < dlTimeout * 1000)
+            {
+                logger.Debug("TestDirectLine: Calling GetActivitiesAsync (elapsed: {ElapsedMs}ms)", stopwatch.ElapsedMilliseconds);
+                var response = await client.GetActivitiesAsync(conversationId, watermark);
+                var activities = response.activities;
+                if (!string.IsNullOrEmpty(response.watermark))
+                {
+                    watermark = response.watermark;
+                }
+
+                logger.Information("TestDirectLine: Retrieved {ActivityCount} activities", activities.Count);
+                
+                if (activities.Count > 0)
+                {
+                    logger.Information("TestDirectLine: Activity types: {ActivityTypes}", 
+                        string.Join(", ", activities.Select(a => $"{a.Type}(from:{a.From?.Id})")));
+                    
+                    responseActivities = activities.Where(a => a.Type == "message" && a.From?.Id != "user").ToList();
+                    logger.Information("TestDirectLine: Found {BotMessageCount} bot messages", responseActivities.Count);
+                    
+                    if (responseActivities.Count > 0)
+                    {
+                        logger.Information("TestDirectLine: Agent responded!");
+                        break;
+                    }
+                }
+                
+                if (responseActivities.Count == 0)
+                {
+                    await Task.Delay(pollInterval);
+                }
+            }
+
+            if (responseActivities.Count == 0)
+            {
+                throw new InvalidOperationException("Agent did not respond to test message. Ensure your agent is published and working correctly.");
+            }
+
+            successMsg = $"✓ Connection successful! Agent responded with: \"{responseActivities.First().Text}\"";
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "TestDirectLine failed");
+            
+            // Provide more helpful error messages based on error type
+            if (ex.Message.Contains("403") || ex.Message.Contains("Forbidden"))
+            {
+                errorMsg = "✗ Connection failed (403 Forbidden): The Direct Line secret is invalid or has been regenerated. " +
+                          "Please verify the secret is correct by copying it again from Copilot Studio → Settings → Security → Web channel security";
+            }
+            else if (ex.Message.Contains("401") || ex.Message.Contains("Unauthorized"))
+            {
+                errorMsg = "✗ Connection failed (401 Unauthorized): Invalid secret format. Verify the secret was copied completely and correctly.";
+            }
+            else
+            {
+                errorMsg = $"✗ Connection test failed: {ex.Message}";
+            }
+        }
+        ClearMessages(5000);
+    }
+
+    private async Task TestJudge()
+    {
+        if (string.IsNullOrWhiteSpace(judgeEndpoint) || string.IsNullOrWhiteSpace(judgeKey) || string.IsNullOrWhiteSpace(judgeModel))
+        {
+            errorMsg = "Please enter Endpoint, API Key, and Model name first";
+            return;
+        }
+        
+        try
+        {
+            var logger = Log.ForContext<SettingsPage>();
+            logger.Information("TestJudge: Starting test. Endpoint: {Endpoint}, Model: {Model}", judgeEndpoint, judgeModel);
+            
+            // Create a test judge setting
+            var testSettings = new JudgeSetting
+            {
+                Endpoint = judgeEndpoint,
+                ApiKey = judgeKey,
+                Model = judgeModel,
+                Temperature = judgeTemp,
+                TopP = judgeTopP,
+                MaxOutputTokens = 500,
+                PassThreshold = 0.7,
+                TaskSuccessWeight = 0.3,
+                IntentMatchWeight = 0.2,
+                FactualityWeight = 0.2,
+                HelpfulnessWeight = 0.2,
+                SafetyWeight = 0.1
+            };
+            
+            // Create a test case
+            var testCase = new TestCase
+            {
+                Id = Guid.NewGuid(),
+                SuiteId = Guid.NewGuid(),
+                Name = "Connection Test",
+                Description = "Test Azure OpenAI connectivity",
+                UserInput = new[] { "What is 2+2?" },
+                ExpectedIntent = "arithmetic",
+                AcceptanceCriteria = "Correct answer with explanation",
+                ReferenceAnswer = "2+2 equals 4",
+                ExpectedEntities = new[] { "number", "operator" },
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            
+            // Create test transcript
+            var transcript = new List<TranscriptMessage>
+            {
+                new TranscriptMessage
+                {
+                    Id = Guid.NewGuid(),
+                    ResultId = Guid.NewGuid(),
+                    Role = "user",
+                    Content = "What is 2+2?",
+                    Timestamp = DateTime.UtcNow,
+                    SequenceNumber = 1
+                },
+                new TranscriptMessage
+                {
+                    Id = Guid.NewGuid(),
+                    ResultId = Guid.NewGuid(),
+                    Role = "assistant",
+                    Content = "The answer is 4. Two plus two equals four.",
+                    Timestamp = DateTime.UtcNow.AddSeconds(1),
+                    SequenceNumber = 2
+                }
+            };
+            
+            logger.Information("TestJudge: Created test data. Calling EvaluateAsync...");
+            
+            // Call the judge service
+            var judgeService = new AzureAIFoundryJudgeService();
+            var evaluationResult = await judgeService.EvaluateAsync(testSettings, testCase, transcript);
+            
+            logger.Information("TestJudge: Evaluation completed. Verdict: {Verdict}, TaskSuccess: {TaskSuccess}",
+                evaluationResult.Verdict, evaluationResult.TaskSuccess);
+            
+            if (evaluationResult.Verdict == "error")
+            {
+                errorMsg = $"✗ AI Judge test failed: {evaluationResult.Rationale}";
+            }
+            else
+            {
+                var scorePercentage = ((evaluationResult.TaskSuccess ?? 0) * 100);
+                successMsg = $"✓ AI Judge connection successful! Test Result: {evaluationResult.Verdict.ToUpper()} " +
+                            $"(Task Success: {scorePercentage:F0}%, Intent Match: {evaluationResult.IntentMatch * 100:F0}%, " +
+                            $"Factuality: {evaluationResult.Factuality * 100:F0}%)\n" +
+                            $"Rationale: {evaluationResult.Rationale}";
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "TestJudge failed");
+            
+            if (ex.Message.Contains("401") || ex.Message.Contains("Unauthorized"))
+            {
+                errorMsg = "✗ AI Judge test failed (401): Invalid API key. Verify your Azure OpenAI API key is correct.";
+            }
+            else if (ex.Message.Contains("404") || ex.Message.Contains("Not Found"))
+            {
+                errorMsg = "✗ AI Judge test failed (404): Endpoint or model not found. Verify the endpoint URL and model name.";
+            }
+            else if (ex.Message.Contains("429") || ex.Message.Contains("Too Many Requests"))
+            {
+                errorMsg = "✗ AI Judge test failed: Rate limit exceeded. Please try again in a few moments.";
+            }
+            else
+            {
+                errorMsg = $"✗ AI Judge test failed: {ex.Message}";
+            }
+        }
+        
+        ClearMessages(5000);
+    }
+
+    private void ClearMessages(int delayMs = 0)
+    {
+        if (delayMs > 0)
+        {
+            _ = Task.Delay(delayMs).ContinueWith(_ =>
+            {
+                successMsg = "";
+                errorMsg = "";
+                StateHasChanged();
+            });
+        }
+    }
+
+    private class ConfigData
+    {
+        public DirectLineConfig? DirectLine { get; set; }
+        public JudgeConfig? Judge { get; set; }
+        public ExecutionConfig? Execution { get; set; }
+        public StorageConfig? Storage { get; set; }
+    }
+
+    private class DirectLineConfig { public string BotId { get; set; } = ""; public string Secret { get; set; } = ""; public int Timeout { get; set; } = 30; public bool UseWebSocket { get; set; } = true; public bool UseWebChannelSecret { get; set; } = false; }
+    private class JudgeConfig { public string Endpoint { get; set; } = ""; public string Key { get; set; } = ""; public string Model { get; set; } = ""; public double Temperature { get; set; } = 0.2; public double TopP { get; set; } = 0.9; public double PassThreshold { get; set; } = 0.7; }
+    private class ExecutionConfig { public int MaxConcurrency { get; set; } = 5; public int RateLimit { get; set; } = 50; public int Retries { get; set; } = 2; public int Backoff { get; set; } = 4; }
+    private class StorageConfig { public string Sqlite { get; set; } = ""; public string Index { get; set; } = ""; public string Upload { get; set; } = ""; }
+}

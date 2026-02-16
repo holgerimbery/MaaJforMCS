@@ -1,0 +1,50 @@
+# Entity Framework
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/
+*.log
+
+# Data
+data/
+results/
+
+# Build
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# IDE
+.vscode/
+.idea/
+*.sln.iml
+*.vs/
+.DS_Store
+
+# User secrets
+secrets.json
+appsettings.Development.json
+appsettings.json
+appsettings.*.json
+
+# Environment
+.env
+.env.local
+
+# NuGet
+*.nupkg
+*.snupkg
+
+# Test results
+TestResults/
+coverage/
+
+# Temporary files
+*.tmp
+*.bak
+*~
+doc-wip/

@@ -1,0 +1,631 @@
+@using CopilotStudioTestRunner.Data
+@using CopilotStudioTestRunner.Domain.Entities
+@using Microsoft.EntityFrameworkCore
+@page "/test-run-report/{RunId}"
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+        <i class="bi bi-exclamation-triangle"></i> @errorMessage
+        <button type="button" class="btn-close" @onclick="@((e) => { errorMessage = null; })"></button>
+    </div>
+}
+
+@if (isLoading)
+{
+    <div style="text-align: center; padding: 40px;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p style="margin-top: 15px; color: #666;">Loading test run report...</p>
+    </div>
+}
+else if (run == null)
+{
+    <div class="alert alert-warning">
+        <p>Test run not found.</p>
+        <a href="/test-suites" class="btn btn-primary btn-sm">Back to Test Suites</a>
+    </div>
+}
+else
+{
+    <!-- Breadcrumb Navigation -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; padding: 0 0 15px 0; border-bottom: 1px solid #e0e0e0;">
+        <div>
+            <nav style="font-size: 0.9em; color: #666; margin-bottom: 8px;">
+                <a href="/dashboard" style="color: #0d47a1; text-decoration: none;">Dashboard</a>
+                <span style="margin: 0 8px; color: #999;">/</span>
+                <span style="color: #999;">@(run.Suite?.Name ?? "Test Run")</span>
+            </nav>
+            <h3 style="margin: 0 0 4px 0; color: #333;">@(run.Suite?.Name ?? "Test Suite") - Test Run Report</h3>
+            <p style="margin: 0; color: #999; font-size: 0.85em;">Executed on @run.StartedAt.ToString("MMMM dd, yyyy \\a\\t HH:mm:ss")</p>
+        </div>
+        <a href="/dashboard" class="btn btn-outline-primary" style="padding: 8px 16px; border-color: #0d47a1; color: #0d47a1; font-weight: 500;">
+            <i class="bi bi-chevron-left"></i> Back to Dashboard
+        </a>
+    </div>
+
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="summary-card">
+                    <div class="card-label">Overall Score</div>
+                    <div class="card-value">@(results.Any() ? (results.Average(r => r.OverallScore ?? 0) * 100).ToString("F1") : "0")<span class="card-unit">%</span></div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="summary-card">
+                    <div class="card-label">Pass Rate</div>
+                    <div class="card-value" style="color: #4caf50;">@(run.TotalTestCases > 0 ? (100.0 * run.PassedCount / run.TotalTestCases).ToString("F1") : "0")<span class="card-unit">%</span></div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="summary-card">
+                    <div class="card-label">Results</div>
+                    <div style="font-size: 1.3em; font-weight: 600; color: #0d47a1; margin: 8px 0;">
+                        <span style="color: #4caf50;">@run.PassedCount</span> / <span style="color: #f44336;">@run.FailedCount</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="summary-card">
+                    <div class="card-label">Latency</div>
+                    <div class="card-value" style="color: #ff9800;">@(run.AverageLatencyMs.ToString("F0"))<span class="card-unit">ms</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Run Details -->
+    <div style="background: white; padding: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px;">
+        <h5 style="margin-bottom: 15px; color: #0d47a1; font-size: 1em;">
+            <i class="bi bi-info-circle"></i> Run Details
+        </h5>
+        <div class="row" style="font-size: 0.9em;">
+            <div class="col-md-3">
+                <span style="color: #999;">Started</span>
+                <div style="font-weight: 500; margin-top: 4px;">@run.StartedAt.ToString("MMM dd, HH:mm:ss")</div>
+            </div>
+            <div class="col-md-3">
+                <span style="color: #999;">Duration</span>
+                <div style="font-weight: 500; margin-top: 4px;">
+                    @if (run.CompletedAt.HasValue)
+                    {
+                        <span>@((run.CompletedAt.Value - run.StartedAt).TotalSeconds.ToString("F1"))s</span>
+                    }
+                    else
+                    {
+                        <span style="color: #ff9800;">In Progress</span>
+                    }
+                </div>
+            </div>
+            <div class="col-md-3">
+                <span style="color: #999;">Status</span>
+                <div style="margin-top: 4px;">
+                    @if (run.Status == "completed")
+                    {
+                        <span style="background-color: #e8f5e9; color: #2e7d32; padding: 3px 8px; border-radius: 3px; font-weight: 500; font-size: 0.8em;">✓ Completed</span>
+                    }
+                    else if (run.Status == "failed")
+                    {
+                        <span style="background-color: #ffebee; color: #c62828; padding: 3px 8px; border-radius: 3px; font-weight: 500; font-size: 0.8em;">✗ Failed</span>
+                    }
+                    else
+                    {
+                        <span style="background-color: #e3f2fd; color: #0d47a1; padding: 3px 8px; border-radius: 3px; font-weight: 500; font-size: 0.8em;">⏳ Running</span>
+                    }
+                </div>
+            </div>
+            <div class="col-md-3">
+                <span style="color: #999;">Model</span>
+                <div style="font-weight: 500; margin-top: 4px;">@(run.ModelVersion ?? "Not specified")</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Score Breakdown -->
+        @if (results.Any())
+        {
+            var avgTaskSuccess = results.Average(r => r.TaskSuccessScore ?? 0);
+            var avgIntentMatch = results.Average(r => r.IntentMatchScore ?? 0);
+            var avgFactuality = results.Average(r => r.FactualityScore ?? 0);
+            var avgHelpfulness = results.Average(r => r.HelpfulnessScore ?? 0);
+            var avgSafety = results.Average(r => r.SafetyScore ?? 0);
+
+            <div style="background: white; padding: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px;">
+                <h5 style="margin-bottom: 15px; color: #0d47a1; font-size: 1em;">
+                    <i class="bi bi-graph-up"></i> Score Details
+                </h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="score-bar-container">
+                            <div class="score-bar-label">
+                                <span>Task Success</span>
+                                <strong style="color: #0d47a1;">@(avgTaskSuccess.ToString("P0"))</strong>
+                            </div>
+                            <div class="score-bar">
+                                <div class="score-bar-fill" style="width: @(avgTaskSuccess * 100)%;"></div>
+                            </div>
+                        </div>
+                        <div class="score-bar-container">
+                            <div class="score-bar-label">
+                                <span>Intent Match</span>
+                                <strong style="color: #1976d2;">@(avgIntentMatch.ToString("P0"))</strong>
+                            </div>
+                            <div class="score-bar">
+                                <div class="score-bar-fill" style="width: @(avgIntentMatch * 100)%; background-color: #1976d2;"></div>
+                            </div>
+                        </div>
+                        <div class="score-bar-container">
+                            <div class="score-bar-label">
+                                <span>Factuality</span>
+                                <strong style="color: #388e3c;">@(avgFactuality.ToString("P0"))</strong>
+                            </div>
+                            <div class="score-bar">
+                                <div class="score-bar-fill" style="width: @(avgFactuality * 100)%; background-color: #388e3c;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="score-bar-container">
+                            <div class="score-bar-label">
+                                <span>Helpfulness</span>
+                                <strong style="color: #d32f2f;">@(avgHelpfulness.ToString("P0"))</strong>
+                            </div>
+                            <div class="score-bar">
+                                <div class="score-bar-fill" style="width: @(avgHelpfulness * 100)%; background-color: #d32f2f;"></div>
+                            </div>
+                        </div>
+                        <div class="score-bar-container">
+                            <div class="score-bar-label">
+                                <span>Safety</span>
+                                <strong style="color: #f57c00;">@(avgSafety.ToString("P0"))</strong>
+                            </div>
+                            <div class="score-bar">
+                                <div class="score-bar-fill" style="width: @(avgSafety * 100)%; background-color: #f57c00;"></div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 16px; padding: 12px; background-color: #f8f9fa; border-radius: 4px; border-left: 3px solid #0d47a1;">
+                            <small style="color: #666;">Overall Average</small>
+                            <div style="font-size: 1.4em; color: #0d47a1; font-weight: 700; margin-top: 4px;">
+                                @(((avgTaskSuccess + avgIntentMatch + avgFactuality + avgHelpfulness + avgSafety) / 5).ToString("P0"))
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Detailed Results Table -->
+        <div style="background: white; padding: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px;">
+            <h5 style="margin-bottom: 15px; color: #0d47a1; font-size: 1em;">
+                <i class="bi bi-table"></i> Test Results (@results.Count)
+            </h5>
+
+            @if (results.Count == 0)
+            {
+                <div style="padding: 15px; text-align: center; color: #999; font-size: 0.9em;">
+                    <p>No test results available</p>
+                </div>
+            }
+            else
+            {
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #e0e0e0; background-color: #f8f9fa;">
+                                <th style="padding: 12px; text-align: left; color: #0d47a1; font-weight: 600;">Question</th>
+                                <th style="padding: 12px; text-align: center; color: #0d47a1; font-weight: 600;">Status</th>
+                                <th style="padding: 12px; text-align: center; color: #0d47a1; font-weight: 600;">Score</th>
+                                <th style="padding: 12px; text-align: center; color: #0d47a1; font-weight: 600;">Latency</th>
+                                <th style="padding: 12px; text-align: center; color: #0d47a1; font-weight: 600;">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var result in results)
+                            {
+                                var testCase = testCases.FirstOrDefault(t => t.Id == result.TestCaseId);
+                                var isExpanded = expandedResultId == result.Id;
+                                var statusColor = result.Verdict == "pass" ? "#4caf50" : "#f44336";
+                                var statusBg = result.Verdict == "pass" ? "#e8f5e9" : "#ffebee";
+                                var overall = result.OverallScore ?? 0;
+
+                                <tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 12px; color: #333;">@GetQuestionText(testCase)</td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <span style="background-color: @statusBg; color: @statusColor; padding: 4px 8px; border-radius: 3px; font-weight: 500; font-size: 0.85em;">
+                                            @(result.Verdict == "pass" ? "✓ Pass" : "✗ Fail")
+                                        </span>
+                                    </td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <strong style="color: #0d47a1;">@((overall * 100).ToString("F0"))%</strong>
+                                    </td>
+                                    <td style="padding: 12px; text-align: center; color: #666; font-size: 0.85em;">@result.LatencyMs ms</td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="@((e) => toggleExpanded(result.Id))" style="padding: 4px 8px; font-size: 0.8em;">
+                                            @(isExpanded ? "▲ Hide" : "▼ Show")
+                                        </button>
+                                    </td>
+                                </tr>
+
+                                @if (isExpanded)
+                                {
+                                    <tr style="background-color: #f8f9fa; border-bottom: 1px solid #eee;">
+                                        <td colspan="5" style="padding: 15px;">
+                                            @{
+                                                var comparison = GetAnswerComparison(testCase, result);
+                                            }
+                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 12px;">
+                                                <div style="background: white; padding: 12px; border-radius: 4px; border-left: 3px solid #0d47a1;">
+                                                    <small style="color: #999;">Question</small>
+                                                    <p style="margin: 6px 0 0 0; color: #333; font-size: 0.9em; line-height: 1.4;">@GetQuestionText(testCase)</p>
+                                                </div>
+                                                <div style="background: white; padding: 12px; border-radius: 4px; border-left: 3px solid #388e3c;">
+                                                    <small style="color: #999;">Expected Answer</small>
+                                                    <p style="margin: 6px 0 0 0; color: #333; font-size: 0.9em; line-height: 1.4;">@GetExpectedAnswer(testCase)</p>
+                                                </div>
+                                                <div style="background: white; padding: 12px; border-radius: 4px; border-left: 3px solid #1976d2;">
+                                                    <small style="color: #999;">Given Answer</small>
+                                                    <p style="margin: 6px 0 0 0; color: #333; font-size: 0.9em; line-height: 1.4;">@GetGivenAnswer(result, testCase)</p>
+                                                </div>
+                                                <div style="background: white; padding: 12px; border-radius: 4px; border-left: 3px solid #7b1fa2;">
+                                                    <small style="color: #999;">Comparison</small>
+                                                    <div style="font-weight: 600; color: #7b1fa2; margin-top: 4px;">@comparison.Label</div>
+                                                    <small style="color: #666; display: block; margin-top: 4px;">@comparison.Detail</small>
+                                                </div>
+                                            </div>
+                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                                                @if (result.TaskSuccessScore.HasValue)
+                                                {
+                                                    <div style="background: white; padding: 12px; border-radius: 4px; border-left: 3px solid #0d47a1;">
+                                                        <small style="color: #999;">Task Success</small>
+                                                        <div style="font-weight: 600; color: #0d47a1; margin-top: 4px;">@(result.TaskSuccessScore.Value.ToString("P0"))</div>
+                                                    </div>
+                                                }
+                                                @if (result.IntentMatchScore.HasValue)
+                                                {
+                                                    <div style="background: white; padding: 12px; border-radius: 4px; border-left: 3px solid #1976d2;">
+                                                        <small style="color: #999;">Intent Match</small>
+                                                        <div style="font-weight: 600; color: #1976d2; margin-top: 4px;">@(result.IntentMatchScore.Value.ToString("P0"))</div>
+                                                    </div>
+                                                }
+                                                @if (result.FactualityScore.HasValue)
+                                                {
+                                                    <div style="background: white; padding: 12px; border-radius: 4px; border-left: 3px solid #388e3c;">
+                                                        <small style="color: #999;">Factuality</small>
+                                                        <div style="font-weight: 600; color: #388e3c; margin-top: 4px;">@(result.FactualityScore.Value.ToString("P0"))</div>
+                                                    </div>
+                                                }
+                                                @if (result.HelpfulnessScore.HasValue)
+                                                {
+                                                    <div style="background: white; padding: 12px; border-radius: 4px; border-left: 3px solid #d32f2f;">
+                                                        <small style="color: #999;">Helpfulness</small>
+                                                        <div style="font-weight: 600; color: #d32f2f; margin-top: 4px;">@(result.HelpfulnessScore.Value.ToString("P0"))</div>
+                                                    </div>
+                                                }
+                                                @if (result.SafetyScore.HasValue)
+                                                {
+                                                    <div style="background: white; padding: 12px; border-radius: 4px; border-left: 3px solid #f57c00;">
+                                                        <small style="color: #999;">Safety</small>
+                                                        <div style="font-weight: 600; color: #f57c00; margin-top: 4px;">@(result.SafetyScore.Value.ToString("P0"))</div>
+                                                    </div>
+                                                }
+                                            </div>
+
+                                            @if (!string.IsNullOrEmpty(result.JudgeRationale))
+                                            {
+                                                <div style="margin-top: 12px; padding: 12px; background-color: white; border-radius: 4px; border-left: 3px solid #ff9800;">
+                                                    <small style="color: #999;">Judge Rationale</small>
+                                                    <p style="margin: 6px 0 0 0; color: #333; font-size: 0.85em; line-height: 1.4;">@result.JudgeRationale</p>
+                                                </div>
+                                            }
+
+                                            @if (!string.IsNullOrEmpty(result.ErrorMessage))
+                                            {
+                                                <div style="margin-top: 12px; padding: 12px; background-color: #ffebee; border-radius: 4px; border-left: 3px solid #f44336;">
+                                                    <small style="color: #c62828;">Error</small>
+                                                    <p style="margin: 6px 0 0 0; color: #c62828; font-size: 0.85em; font-family: monospace; line-height: 1.3;">@result.ErrorMessage</p>
+                                                </div>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
+}
+
+<style>
+.summary-card {
+    background: white;
+    padding: 20px;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border-top: 3px solid #0d47a1;
+}
+
+.card-label {
+    font-size: 0.8em;
+    color: #999;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.card-value {
+    font-size: 2em;
+    font-weight: 700;
+    color: #0d47a1;
+}
+
+.card-unit {
+    font-size: 0.5em;
+    margin-left: 2px;
+}
+
+.score-bar-container {
+    margin-bottom: 16px;
+}
+
+.score-bar-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 0.9em;
+}
+
+.score-bar {
+    height: 8px;
+    background-color: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.score-bar-fill {
+    height: 100%;
+    background-color: #0d47a1;
+    transition: width 0.3s ease;
+}
+</style>
+
+@code {
+    [Parameter]
+    public string? RunId { get; set; }
+
+    [Inject]
+    public TestRunnerDbContext? DbContext { get; set; }
+
+    private Run? run;
+    private List<Result> results = new();
+    private List<TestCase> testCases = new();
+    private bool isLoading = true;
+    private string errorMessage = "";
+    private Guid? expandedResultId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (DbContext == null)
+            {
+                errorMessage = "Database context not available";
+                isLoading = false;
+                return;
+            }
+
+            if (!Guid.TryParse(RunId, out var runId))
+            {
+                errorMessage = "Invalid run ID";
+                isLoading = false;
+                return;
+            }
+
+            // Load run with suite
+            run = await DbContext.Runs
+                .Include(r => r.Suite)
+                .FirstOrDefaultAsync(r => r.Id == runId);
+
+            if (run == null)
+            {
+                errorMessage = "Test run not found";
+                isLoading = false;
+                return;
+            }
+
+            // Load results
+            results = await DbContext.Results
+                .Include(r => r.TranscriptMessages)
+                .Where(r => r.RunId == runId)
+                .OrderByDescending(r => r.ExecutedAt)
+                .ToListAsync();
+
+            // Load test cases
+            if (results.Any())
+            {
+                var testCaseIds = results.Select(r => r.TestCaseId).Distinct().ToList();
+                testCases = await DbContext.TestCases
+                    .Where(tc => testCaseIds.Contains(tc.Id))
+                    .ToListAsync();
+            }
+
+            isLoading = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading test run: {ex.Message}";
+            isLoading = false;
+        }
+    }
+
+    private void toggleExpanded(Guid resultId)
+    {
+        expandedResultId = expandedResultId == resultId ? null : resultId;
+    }
+
+    private string GetQuestionText(TestCase? testCase)
+    {
+        if (testCase == null)
+        {
+            return "Unknown question";
+        }
+
+        var question = testCase.UserInput?.FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(question))
+        {
+            return question;
+        }
+
+        if (!string.IsNullOrWhiteSpace(testCase.Description))
+        {
+            return testCase.Description;
+        }
+
+        return string.IsNullOrWhiteSpace(testCase.Name) ? "Unknown question" : testCase.Name;
+    }
+
+    private string GetExpectedAnswer(TestCase? testCase)
+    {
+        if (testCase == null)
+        {
+            return "No expected answer provided";
+        }
+
+        if (!string.IsNullOrWhiteSpace(testCase.ReferenceAnswer))
+        {
+            return testCase.ReferenceAnswer;
+        }
+
+        if (!string.IsNullOrWhiteSpace(testCase.AcceptanceCriteria))
+        {
+            return testCase.AcceptanceCriteria;
+        }
+
+        return "No expected answer provided";
+    }
+
+    private string GetGivenAnswer(Result result, TestCase? testCase)
+    {
+        if (result.TranscriptMessages == null || result.TranscriptMessages.Count == 0)
+        {
+            return "No response captured";
+        }
+
+        var userInputs = (testCase?.UserInput ?? Array.Empty<string>())
+            .Where(input => !string.IsNullOrWhiteSpace(input))
+            .Select(input => input.Trim())
+            .ToArray();
+
+        var lastNonEchoMessage = result.TranscriptMessages
+            .Where(m => !string.IsNullOrWhiteSpace(m.Content))
+            .Where(m => !string.Equals(m.Role, "user", StringComparison.OrdinalIgnoreCase))
+            .Where(m => userInputs.Length == 0 || !userInputs.Any(input => string.Equals(input, m.Content?.Trim(), StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(m => m.SequenceNumber)
+            .LastOrDefault();
+
+        if (lastNonEchoMessage != null)
+        {
+            return lastNonEchoMessage.Content;
+        }
+
+        return "No response captured";
+    }
+
+    private (string Label, string Detail) GetAnswerComparison(TestCase? testCase, Result result)
+    {
+        var expected = GetExpectedAnswer(testCase);
+        var given = GetGivenAnswer(result, testCase);
+
+        if (expected == "No expected answer provided")
+        {
+            return ("No expected answer", "Add an expected answer to compare");
+        }
+
+        if (given == "No response captured")
+        {
+            return ("No response", "No bot reply captured for this run");
+        }
+
+        // Use Azure OpenAI judge verdict instead of keyword overlap
+        if (!string.IsNullOrEmpty(result.Verdict))
+        {
+            var verdict = result.Verdict.ToLower();
+            if (verdict == "pass")
+            {
+                // Calculate semantic match score from judge dimensions
+                var avgScore = ((result.TaskSuccessScore ?? 0) + 
+                               (result.IntentMatchScore ?? 0) + 
+                               (result.FactualityScore ?? 0) + 
+                               (result.HelpfulnessScore ?? 0) + 
+                               (result.SafetyScore ?? 0)) / 5.0;
+                
+                return ($"Pass ({avgScore:P0})", $"Judge verified: {result.JudgeRationale ?? "Response contains key information"}");
+            }
+            else if (verdict == "fail")
+            {
+                var avgScore = ((result.TaskSuccessScore ?? 0) + 
+                               (result.IntentMatchScore ?? 0) + 
+                               (result.FactualityScore ?? 0) + 
+                               (result.HelpfulnessScore ?? 0) + 
+                               (result.SafetyScore ?? 0)) / 5.0;
+                
+                return ($"Fail ({avgScore:P0})", $"Judge evaluation: {result.JudgeRationale ?? "Missing key information"}");
+            }
+        }
+
+        // Fallback to semantic similarity if judge verdict unavailable
+        var similarity = CalculateSimilarity(expected, given);
+        var label = similarity >= 0.75
+            ? $"Semantic match ({similarity:P0})"
+            : similarity >= 0.4
+                ? $"Partial match ({similarity:P0})"
+                : $"Needs review ({similarity:P0})";
+
+        return (label, "Note: Showing semantic similarity. Azure OpenAI judge recommended for accurate comparison");
+    }
+
+    private double CalculateSimilarity(string expected, string given)
+    {
+        var expectedTokens = Tokenize(expected);
+        var givenTokens = Tokenize(given);
+
+        if (expectedTokens.Count == 0 || givenTokens.Count == 0)
+        {
+            return 0;
+        }
+
+        var intersection = expectedTokens.Intersect(givenTokens).Count();
+        var union = expectedTokens.Union(givenTokens).Count();
+
+        return union == 0 ? 0 : (double)intersection / union;
+    }
+
+    private HashSet<string> Tokenize(string text)
+    {
+        var tokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var current = new System.Text.StringBuilder();
+
+        foreach (var ch in text)
+        {
+            if (char.IsLetterOrDigit(ch))
+            {
+                current.Append(char.ToLowerInvariant(ch));
+                continue;
+            }
+
+            if (current.Length > 0)
+            {
+                tokens.Add(current.ToString());
+                current.Clear();
+            }
+        }
+
+        if (current.Length > 0)
+        {
+            tokens.Add(current.ToString());
+        }
+
+        return tokens;
+    }
+}

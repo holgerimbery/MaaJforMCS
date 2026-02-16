@@ -1,0 +1,564 @@
+@using CopilotStudioTestRunner.Data
+@using CopilotStudioTestRunner.Domain.Entities
+@using Microsoft.EntityFrameworkCore
+@page "/dashboard"
+@layout MainLayout
+
+<div style="max-width: 1200px;">
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-warning alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+            <i class="bi bi-exclamation-triangle"></i> @errorMessage
+            <button type="button" class="btn-close" @onclick="@((e) => { errorMessage = null; })"></button>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div style="text-align: center; padding: 40px;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p style="margin-top: 15px; color: #666;">Loading metrics...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Metrics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="metric-card">
+                    <div class="metric-header">Total Runs</div>
+                    <div class="metric-value">@totalRuns</div>
+                    <div class="metric-subtitle">test executions</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="metric-card">
+                    <div class="metric-header">Pass Rate</div>
+                    <div class="metric-value">@passRate.ToString("F1")%</div>
+                    <div class="metric-subtitle">overall success</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="metric-card">
+                    <div class="metric-header">Test Suites</div>
+                    <div class="metric-value">@totalSuites</div>
+                    <div class="metric-subtitle">configured</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="metric-card">
+                    <div class="metric-header">Avg Latency</div>
+                    <div class="metric-value">@avgLatency.ToString("F0")<span style="font-size: 0.5em;">ms</span></div>
+                    <div class="metric-subtitle">response time</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Runs -->
+        <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;">
+            <h5 style="margin-bottom: 20px; color: #0d47a1;">
+                <i class="bi bi-clock-history"></i> Recent Test Runs
+            </h5>
+
+            @if (recentRuns == null || recentRuns.Count == 0)
+            {
+                <div style="padding: 20px; text-align: center; color: #999;">
+                    <p>No test runs yet</p>
+                    <small>Create a test suite and execute it to see results here</small>
+                </div>
+            }
+            else
+            {
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #e0e0e0;">
+                                <th style="padding: 12px; text-align: left; color: #0d47a1; font-weight: 600;">Suite Name</th>
+                                <th style="padding: 12px; text-align: left; color: #0d47a1; font-weight: 600;">Date</th>
+                                <th style="padding: 12px; text-align: center; color: #0d47a1; font-weight: 600;">Passed</th>
+                                <th style="padding: 12px; text-align: center; color: #0d47a1; font-weight: 600;">Failed</th>
+                                <th style="padding: 12px; text-align: center; color: #0d47a1; font-weight: 600;">Pass Rate</th>
+                                <th style="padding: 12px; text-align: center; color: #0d47a1; font-weight: 600;">Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var run in recentRuns)
+                            {
+                                var runPassRate = run.TotalTestCases > 0
+                                    ? (100.0 * run.PassedCount / run.TotalTestCases)
+                                    : 0;
+                                var duration = run.CompletedAt.HasValue
+                                    ? (run.CompletedAt.Value - run.StartedAt).TotalSeconds
+                                    : -1;
+                                
+                                <tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 12px; color: #333;">
+                                        <a href="@($"/test-run-report/{run.Id}")" style="color: #0d47a1; text-decoration: none; font-weight: 600; cursor: pointer;">
+                                            <strong>@GetSuiteName(run)</strong>
+                                        </a>
+                                    </td>
+                                    <td style="padding: 12px; color: #666;">@run.StartedAt.ToString("MMM dd, HH:mm:ss")</td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <span style="background-color: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 4px; font-weight: 500;">
+                                            @run.PassedCount
+                                        </span>
+                                    </td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <span style="background-color: #ffebee; color: #c62828; padding: 4px 8px; border-radius: 4px; font-weight: 500;">
+                                            @run.FailedCount
+                                        </span>
+                                    </td>
+                                    <td style="padding: 12px; text-align: center; color: #0d47a1; font-weight: 600;">
+                                        @runPassRate.ToString("F1")%
+                                    </td>
+                                    <td style="padding: 12px; text-align: center; color: #666;">
+                                        @(duration >= 0 ? $"{duration:F1}s" : "In Progress")
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <!-- Test Result Analysis -->
+        @if (testAnalysis != null && testAnalysis.TotalTests > 0)
+        {
+            <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                <h5 style="margin-bottom: 20px; color: #0d47a1;">
+                    <i class="bi bi-graph-up"></i> Test Result Analysis
+                </h5>
+
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <h6 style="color: #666; font-size: 0.9em; margin-bottom: 10px;">Average Scores by Dimension</h6>
+                        <div style="padding: 10px; background-color: #f8f9fa; border-radius: 6px;">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span style="font-size: 0.9em;">Task Success:</span>
+                                <strong style="color: #0d47a1;">@(testAnalysis.AvgTaskSuccess.ToString("P0"))</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span style="font-size: 0.9em;">Intent Match:</span>
+                                <strong style="color: #0d47a1;">@(testAnalysis.AvgIntentMatch.ToString("P0"))</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span style="font-size: 0.9em;">Factuality:</span>
+                                <strong style="color: #0d47a1;">@(testAnalysis.AvgFactuality.ToString("P0"))</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span style="font-size: 0.9em;">Helpfulness:</span>
+                                <strong style="color: #0d47a1;">@(testAnalysis.AvgHelpfulness.ToString("P0"))</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span style="font-size: 0.9em;">Safety:</span>
+                                <strong style="color: #0d47a1;">@(testAnalysis.AvgSafety.ToString("P0"))</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <h6 style="color: #666; font-size: 0.9em; margin-bottom: 10px;">Performance Metrics</h6>
+                        <div style="padding: 10px; background-color: #f8f9fa; border-radius: 6px;">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span style="font-size: 0.9em;">Avg Latency:</span>
+                                <strong style="color: #ff9800;">@((int)avgLatency) ms</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span style="font-size: 0.9em;">Median Latency:</span>
+                                <strong style="color: #ff9800;">@((int)testAnalysis.MedianLatency) ms</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span style="font-size: 0.9em;">P95 Latency:</span>
+                                <strong style="color: #ff9800;">@((int)testAnalysis.P95Latency) ms</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span style="font-size: 0.9em;">Avg Tokens:</span>
+                                <strong style="color: #9c27b0;">@((int)testAnalysis.AvgTokens)</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <h6 style="color: #666; font-size: 0.9em; margin-bottom: 10px;">Score Distribution</h6>
+                        <div style="padding: 10px; background-color: #f8f9fa; border-radius: 6px;">
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span style="font-size: 0.85em;">Excellent (>90%)</span>
+                                    <strong style="color: #4caf50;">@testAnalysis.ExcellentCount</strong>
+                                </div>
+                                <div style="height: 8px; background-color: #e0e0e0; border-radius: 4px; overflow: hidden;">
+                                    <div style="height: 100%; width: @(testAnalysis.ExcellentPercent)%; background-color: #4caf50;"></div>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span style="font-size: 0.85em;">Good (70-90%)</span>
+                                    <strong style="color: #2196f3;">@testAnalysis.GoodCount</strong>
+                                </div>
+                                <div style="height: 8px; background-color: #e0e0e0; border-radius: 4px; overflow: hidden;">
+                                    <div style="height: 100%; width: @(testAnalysis.GoodPercent)%; background-color: #2196f3;"></div>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span style="font-size: 0.85em;">Fair (50-70%)</span>
+                                    <strong style="color: #ff9800;">@testAnalysis.FairCount</strong>
+                                </div>
+                                <div style="height: 8px; background-color: #e0e0e0; border-radius: 4px; overflow: hidden;">
+                                    <div style="height: 100%; width: @(testAnalysis.FairPercent)%; background-color: #ff9800;"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span style="font-size: 0.85em;">Poor (&lt;50%)</span>
+                                    <strong style="color: #f44336;">@testAnalysis.PoorCount</strong>
+                                </div>
+                                <div style="height: 8px; background-color: #e0e0e0; border-radius: 4px; overflow: hidden;">
+                                    <div style="height: 100%; width: @(testAnalysis.PoorPercent)%; background-color: #f44336;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trend Analysis -->
+                @if (testAnalysis.TrendData.Count >= 2)
+                {
+                    var trend = testAnalysis.TrendData.Last().PassRate - testAnalysis.TrendData.First().PassRate;
+                    var trendIcon = trend >= 0 ? "arrow-up-circle-fill" : "arrow-down-circle-fill";
+                    var trendColor = trend >= 0 ? "#4caf50" : "#f44336";
+                    
+                    <div class="alert" style="background-color: #f0f7ff; border-left: 4px solid #0d47a1;">
+                        <h6 style="color: #0d47a1; margin-bottom: 10px;">
+                            <i class="bi bi-graph-up-arrow"></i> Trend Analysis
+                        </h6>
+                        <div class="d-flex align-items-center gap-3">
+                            <div>
+                                <i class="bi bi-@trendIcon" style="font-size: 2em; color: @trendColor;"></i>
+                            </div>
+                            <div>
+                                <strong style="color: @trendColor; font-size: 1.1em;">@(trend >= 0 ? "+" : "")@trend.ToString("F1")%</strong>
+                                <span style="color: #666; font-size: 0.9em;"> change in pass rate over last @testAnalysis.TrendData.Count runs</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- Failed Tests Insights -->
+            @if (testAnalysis.CommonFailures.Count > 0)
+            {
+                <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                    <h5 style="margin-bottom: 20px; color: #0d47a1;">
+                        <i class="bi bi-exclamation-triangle"></i> Common Failure Patterns
+                    </h5>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        @foreach (var failure in testAnalysis.CommonFailures.Take(5))
+                        {
+                            <div style="padding: 12px; border: 1px solid #ffebee; border-radius: 6px; background-color: #fff5f5; margin-bottom: 10px;">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div style="flex: 1;">
+                                        <strong style="color: #c62828;">@failure.TestName</strong>
+                                        <p style="margin: 5px 0 0 0; font-size: 0.9em; color: #666;">@failure.Reason</p>
+                                    </div>
+                                    <span class="badge bg-danger">@failure.FailureCount failures</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+
+        <!-- Quick Stats -->
+        <div class="row">
+            <div class="col-md-6">
+                <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                    <h6 style="color: #0d47a1; margin-bottom: 15px;">
+                        <i class="bi bi-info-circle"></i> System Information
+                    </h6>
+                    <table style="width: 100%; font-size: 0.95em;">
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 8px; color: #666;">Database</td>
+                            <td style="padding: 8px; font-weight: 500;">SQLite 3.x</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 8px; color: #666;">Framework</td>
+                            <td style="padding: 8px; font-weight: 500;"> ASP.NET Core Blazor</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 8px; color: #666;">Runtime</td>
+                            <td style="padding: 8px; font-weight: 500;">.NET 9.0</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; color: #666;">Version</td>
+                            <td style="padding: 8px; font-weight: 500;">1.0.0</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                    <h6 style="color: #0d47a1; margin-bottom: 15px;">
+                        <i class="bi bi-calendar-check"></i> Last 24 Hours
+                    </h6>
+                    <div style="font-size: 0.95em;">
+                        <div style="padding: 8px; border-bottom: 1px solid #eee;">
+                            <span style="color: #666;">Tests Run:</span><br />
+                            <strong style="color: #0d47a1; font-size: 1.3em;">@testsLast24h</strong>
+                        </div>
+                        <div style="padding: 8px;">
+                            <span style="color: #666;">Success Rate:</span><br />
+                            <strong style="color: #4caf50; font-size: 1.3em;">@passRateLast24h.ToString("F1")%</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+.metric-card {
+    background: white;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    text-align: center;
+    border-top: 4px solid #0d47a1;
+    transition: transform 0.2s;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.metric-header {
+    color: #666;
+    font-size: 0.85em;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.metric-value {
+    color: #0d47a1;
+    font-size: 2.5em;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 5px;
+}
+
+.metric-subtitle {
+    color: #999;
+    font-size: 0.85em;
+}
+</style>
+
+@code {
+    [Inject]
+    public TestRunnerDbContext? DbContext { get; set; }
+
+    private List<Run>? recentRuns;
+    private int totalRuns = 0;
+    private int totalSuites = 0;
+    private double passRate = 0;
+    private double avgLatency = 0;
+    private int testsLast24h = 0;
+    private double passRateLast24h = 0;
+    private bool isLoading = true;
+    private string errorMessage = "";
+    private TestAnalysis? testAnalysis;
+    private Dictionary<Guid, string> suiteNameMap = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (DbContext == null)
+            {
+                errorMessage = "Database context not available";
+                isLoading = false;
+                return;
+            }
+
+            // Get statistics
+            totalRuns = await DbContext.Runs.CountAsync();
+            totalSuites = await DbContext.TestSuites.CountAsync();
+
+            // Get recent runs
+            recentRuns = await DbContext.Runs
+                .Include(r => r.Suite)
+                .OrderByDescending(r => r.StartedAt)
+                .Take(10)
+                .ToListAsync();
+
+            var suiteIds = recentRuns.Select(r => r.SuiteId).Distinct().ToList();
+            suiteNameMap = await DbContext.TestSuites
+                .Where(s => suiteIds.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id, s => s.Name);
+
+            // Calculate metrics
+            var allResults = await DbContext.Results.ToListAsync();
+            if (allResults.Count > 0)
+            {
+                var passCount = allResults.Count(r => r.Verdict == "pass");
+                passRate = 100.0 * passCount / allResults.Count;
+                avgLatency = allResults.Average(r => r.LatencyMs);
+
+                // Calculate detailed analysis
+                testAnalysis = new TestAnalysis
+                {
+                    TotalTests = allResults.Count,
+                    AvgTaskSuccess = allResults.Average(r => r.TaskSuccessScore ?? 0),
+                    AvgIntentMatch = allResults.Average(r => r.IntentMatchScore ?? 0),
+                    AvgFactuality = allResults.Average(r => r.FactualityScore ?? 0),
+                    AvgHelpfulness = allResults.Average(r => r.HelpfulnessScore ?? 0),
+                    AvgSafety = allResults.Average(r => r.SafetyScore ?? 0),
+                    MedianLatency = GetMedian(allResults.Select(r => (double)r.LatencyMs).ToList()),
+                    P95Latency = GetPercentile(allResults.Select(r => (double)r.LatencyMs).ToList(), 95),
+                    AvgTokens = allResults.Average(r => r.TokensUsed ?? 0)
+                };
+
+                // Calculate score distribution
+                var avgScores = allResults.Select(r => 
+                    ((r.TaskSuccessScore ?? 0) + (r.IntentMatchScore ?? 0) + (r.FactualityScore ?? 0) + (r.HelpfulnessScore ?? 0) + (r.SafetyScore ?? 0)) / 5.0
+                ).ToList();
+                
+                testAnalysis.ExcellentCount = avgScores.Count(s => s > 0.9);
+                testAnalysis.GoodCount = avgScores.Count(s => s >= 0.7 && s <= 0.9);
+                testAnalysis.FairCount = avgScores.Count(s => s >= 0.5 && s < 0.7);
+                testAnalysis.PoorCount = avgScores.Count(s => s < 0.5);
+
+                // Calculate percentages
+                testAnalysis.ExcellentPercent = testAnalysis.ExcellentCount / (double)allResults.Count * 100;
+                testAnalysis.GoodPercent = testAnalysis.GoodCount / (double)allResults.Count * 100;
+                testAnalysis.FairPercent = testAnalysis.FairCount / (double)allResults.Count * 100;
+                testAnalysis.PoorPercent = testAnalysis.PoorCount / (double)allResults.Count * 100;
+
+                // Calculate trend data from recent runs
+                if (recentRuns != null && recentRuns.Count > 0)
+                {
+                    foreach (var run in recentRuns.OrderBy(r => r.StartedAt))
+                    {
+                        var runResults = allResults.Where(r => r.RunId == run.Id).ToList();
+                        if (runResults.Any())
+                        {
+                            var runPassCount = runResults.Count(r => r.Verdict == "pass");
+                            testAnalysis.TrendData.Add(new TrendPoint
+                            {
+                                Date = run.StartedAt,
+                                PassRate = 100.0 * runPassCount / runResults.Count
+                            });
+                        }
+                    }
+                }
+
+                // Find common failure patterns
+                var failedResults = allResults.Where(r => r.Verdict != "pass").ToList();
+                var failureGroups = failedResults
+                    .Where(r => !string.IsNullOrEmpty(r.JudgeRationale))
+                    .GroupBy(r => new { r.TestCase?.Name, r.JudgeRationale })
+                    .Select(g => new FailurePattern
+                    {
+                        TestName = g.Key.Name ?? "Unknown Test",
+                        Reason = g.Key.JudgeRationale ?? "No rationale provided",
+                        FailureCount = g.Count()
+                    })
+                    .OrderByDescending(f => f.FailureCount)
+                    .ToList();
+
+                testAnalysis.CommonFailures = failureGroups;
+
+                // Last 24 hours
+                var last24h = DateTime.UtcNow.AddHours(-24);
+                var last24hResults = allResults.Where(r => r.ExecutedAt > last24h).ToList();
+                testsLast24h = last24hResults.Count;
+                if (last24hResults.Count > 0)
+                {
+                    var pass24h = last24hResults.Count(r => r.Verdict == "pass");
+                    passRateLast24h = 100.0 * pass24h / last24hResults.Count;
+                }
+            }
+
+            isLoading = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading dashboard: {ex.Message}";
+            isLoading = false;
+        }
+    }
+
+    private string GetSuiteName(Run run)
+    {
+        if (run.Suite != null && !string.IsNullOrWhiteSpace(run.Suite.Name))
+        {
+            return run.Suite.Name;
+        }
+
+        if (suiteNameMap.TryGetValue(run.SuiteId, out var name) && !string.IsNullOrWhiteSpace(name))
+        {
+            return name;
+        }
+
+        return "Unknown";
+    }
+
+    private double GetMedian(List<double> values)
+    {
+        if (!values.Any()) return 0;
+        var sorted = values.OrderBy(v => v).ToList();
+        int mid = sorted.Count / 2;
+        return sorted.Count % 2 == 0 ? (sorted[mid - 1] + sorted[mid]) / 2.0 : sorted[mid];
+    }
+
+    private double GetPercentile(List<double> values, int percentile)
+    {
+        if (!values.Any()) return 0;
+        var sorted = values.OrderBy(v => v).ToList();
+        int index = (int)Math.Ceiling(percentile / 100.0 * sorted.Count) - 1;
+        return sorted[Math.Max(0, Math.Min(index, sorted.Count - 1))];
+    }
+
+    private class TestAnalysis
+    {
+        public int TotalTests { get; set; }
+        public double AvgTaskSuccess { get; set; }
+        public double AvgIntentMatch { get; set; }
+        public double AvgFactuality { get; set; }
+        public double AvgHelpfulness { get; set; }
+        public double AvgSafety { get; set; }
+        public double MedianLatency { get; set; }
+        public double P95Latency { get; set; }
+        public double AvgTokens { get; set; }
+        public int ExcellentCount { get; set; }
+        public int GoodCount { get; set; }
+        public int FairCount { get; set; }
+        public int PoorCount { get; set; }
+        public double ExcellentPercent { get; set; }
+        public double GoodPercent { get; set; }
+        public double FairPercent { get; set; }
+        public double PoorPercent { get; set; }
+        public List<TrendPoint> TrendData { get; set; } = new();
+        public List<FailurePattern> CommonFailures { get; set; } = new();
+    }
+
+    private class TrendPoint
+    {
+        public DateTime Date { get; set; }
+        public double PassRate { get; set; }
+    }
+
+    private class FailurePattern
+    {
+        public string TestName { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+        public int FailureCount { get; set; }
+    }
+}
