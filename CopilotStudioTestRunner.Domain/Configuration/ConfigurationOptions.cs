@@ -25,7 +25,7 @@ public class JudgeSettings
 public class ExecutionSettings
 {
     public int MaxConcurrency { get; set; } = 5;
-    public int RateLimitPerMinute { get; set; } = 50;
+    public int RateLimitPerMinute { get; set; } = 20;
     public int Retries { get; set; } = 2;
     public int BackoffSeconds { get; set; } = 4;
 }

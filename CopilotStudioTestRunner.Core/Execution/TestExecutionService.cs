@@ -164,6 +164,93 @@ public class TestExecutionService : ITestExecutionService
         DirectLineSettings directLineSettings,
         CancellationToken cancellationToken)
     {
+        var maxRetries = directLineSettings.MaxRetries;
+        var backoffSeconds = directLineSettings.BackoffSeconds;
+
+        for (int attempt = 0; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                var result = await ExecuteTestCaseAttemptAsync(
+                    testCase, 
+                    directLineClient, 
+                    judgeService, 
+                    judgeSettings, 
+                    directLineSettings, 
+                    cancellationToken);
+
+                // Check if the response contains a rate limit error
+                var hasRateLimitError = result.TranscriptMessages.Any(m => 
+                    m.Content?.Contains("GenAIToolPlannerRateLimitReached", StringComparison.OrdinalIgnoreCase) == true ||
+                    m.Content?.Contains("RateLimitReached", StringComparison.OrdinalIgnoreCase) == true);
+
+                if (hasRateLimitError && attempt < maxRetries)
+                {
+                    var delayMs = (int)(Math.Pow(2, attempt) * backoffSeconds * 1000);
+                    _logger.Warning(
+                        "Rate limit error detected for test case {TestCaseName}. Attempt {Attempt}/{MaxRetries}. Retrying in {DelayMs}ms...",
+                        testCase.Name, attempt + 1, maxRetries + 1, delayMs);
+                    
+                    await Task.Delay(delayMs, cancellationToken);
+                    continue; // Retry
+                }
+
+                if (hasRateLimitError)
+                {
+                    result.Verdict = "error";
+                    result.ErrorMessage = "Rate limit exceeded after all retry attempts";
+                    _logger.Error(
+                        "Rate limit error persisted for test case {TestCaseName} after {Attempts} attempts",
+                        testCase.Name, attempt + 1);
+                }
+
+                return result;
+            }
+            catch (Exception ex) when (attempt < maxRetries)
+            {
+                var delayMs = (int)(Math.Pow(2, attempt) * backoffSeconds * 1000);
+                _logger.Warning(ex, 
+                    "Test case {TestCaseName} failed on attempt {Attempt}/{MaxRetries}. Retrying in {DelayMs}ms...",
+                    testCase.Name, attempt + 1, maxRetries + 1, delayMs);
+                
+                await Task.Delay(delayMs, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Final attempt failed
+                _logger.Error(ex, "Test case {TestCaseName} failed after {Attempts} attempts", 
+                    testCase.Name, attempt + 1);
+                
+                return new Result
+                {
+                    Id = Guid.NewGuid(),
+                    TestCaseId = testCase.Id,
+                    ExecutedAt = DateTime.UtcNow,
+                    Verdict = "error",
+                    ErrorMessage = $"Failed after {attempt + 1} attempts: {ex.Message}"
+                };
+            }
+        }
+
+        // Should not reach here, but just in case
+        return new Result
+        {
+            Id = Guid.NewGuid(),
+            TestCaseId = testCase.Id,
+            ExecutedAt = DateTime.UtcNow,
+            Verdict = "error",
+            ErrorMessage = "Unexpected error: exceeded retry limit"
+        };
+    }
+
+    private async Task<Result> ExecuteTestCaseAttemptAsync(
+        TestCase testCase,
+        DirectLineClient directLineClient,
+        IJudgeService judgeService,
+        JudgeSetting judgeSettings,
+        DirectLineSettings directLineSettings,
+        CancellationToken cancellationToken)
+    {
         var result = new Result
         {
             Id = Guid.NewGuid(),
@@ -264,6 +351,8 @@ public class TestExecutionService : ITestExecutionService
             result.Verdict = evaluation.Verdict;
             result.JudgeRationale = evaluation.Rationale;
             result.JudgeCitations = evaluation.Citations?.ToArray() ?? [];
+
+            return result;
         }
         catch (OperationCanceledException)
         {
@@ -271,6 +360,7 @@ public class TestExecutionService : ITestExecutionService
             result.LatencyMs = stopwatch.ElapsedMilliseconds;
             result.Verdict = "skipped";
             result.ErrorMessage = "Execution cancelled";
+            return result;
         }
         catch (Exception ex)
         {
@@ -278,10 +368,9 @@ public class TestExecutionService : ITestExecutionService
             result.LatencyMs = stopwatch.ElapsedMilliseconds;
             result.Verdict = "error";
             result.ErrorMessage = ex.Message;
-            _logger.Error(ex, "Test case execution error");
+            _logger.Error(ex, "Test case attempt execution error");
+            throw; // Re-throw to allow retry logic to handle it
         }
-
-        return result;
     }
 
     private double CalculatePercentile(List<long> values, int percentile)
