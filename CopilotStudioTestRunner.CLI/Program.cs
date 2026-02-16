@@ -50,7 +50,7 @@ static void PrintUsage()
     Console.WriteLine("Options:");
     Console.WriteLine("  --suite     Test suite name or ID to run (required for run)");
     Console.WriteLine("  --output    Output directory for results (default: ./results)");
-    Console.WriteLine("  --config    Path to appsettings.json (default: appsettings.json)");
+    Console.WriteLine("  --config    Path to appsettings.json (default: ../appsettings.json from solution root)");
     Console.WriteLine("  --dry-run   Show what would be executed without running");
 }
 
@@ -107,10 +107,10 @@ static async Task<int> RunSuiteAsync(Dictionary<string, string?> options)
     {
         Log.Information("Starting test run for suite: {Suite}", suite);
 
-        var configPath = config ?? "appsettings.json";
+        var configPath = config ?? Path.Combine(Directory.GetCurrentDirectory(), "..", "appsettings.json");
         var configBuilder = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile(configPath, optional: false, reloadOnChange: false)
+            .SetBasePath(Path.GetDirectoryName(configPath)!)
+            .AddJsonFile(Path.GetFileName(configPath), optional: false, reloadOnChange: false)
             .AddEnvironmentVariables();
 
         var configuration = configBuilder.Build();
@@ -118,6 +118,9 @@ static async Task<int> RunSuiteAsync(Dictionary<string, string?> options)
         configuration.Bind(testRunnerConfig);
 
         var dbPath = configuration.GetValue<string>("Storage:SqlitePath") ?? "./data/app.db";
+        // Resolve path relative to config file location
+        var configDir = Path.GetDirectoryName(configPath)!;
+        dbPath = Path.IsPathRooted(dbPath) ? dbPath : Path.Combine(configDir, dbPath);
         Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
         var connectionString = $"Data Source={dbPath}";
 
@@ -200,14 +203,17 @@ static async Task<int> ListSuitesAsync(Dictionary<string, string?> options)
 
     try
     {
-        var configPath = config ?? "appsettings.json";
+        var configPath = config ?? Path.Combine(Directory.GetCurrentDirectory(), "..", "appsettings.json");
         var configBuilder = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile(configPath, optional: false, reloadOnChange: false)
+            .SetBasePath(Path.GetDirectoryName(configPath)!)
+            .AddJsonFile(Path.GetFileName(configPath), optional: false, reloadOnChange: false)
             .AddEnvironmentVariables();
 
         var configuration = configBuilder.Build();
         var dbPath = configuration.GetValue<string>("Storage:SqlitePath") ?? "./data/app.db";
+        // Resolve path relative to config file location
+        var configDir = Path.GetDirectoryName(configPath)!;
+        dbPath = Path.IsPathRooted(dbPath) ? dbPath : Path.Combine(configDir, dbPath);
         var connectionString = $"Data Source={dbPath}";
 
         var dbOptions = new DbContextOptionsBuilder<TestRunnerDbContext>()
