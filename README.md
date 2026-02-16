@@ -43,7 +43,7 @@ An enterprise-grade .NET application for automated testing of Microsoft Copilot 
 
 - .NET 9 SDK
 - Azure AI Foundry endpoint (or OpenAI-compatible endpoint)
-- Direct Line Web Channel secret and bot ID (from the Copilot Studio agent URI)
+- Copilot Studio Web Channel secret and bot ID (from the Copilot Studio agent URI)
 
 ### Installation
 
@@ -206,8 +206,7 @@ Contributions welcome! Please:
 3. Submit a pull request
 
 ## License
-
-TBD
+MIT 2026 Holger Imbery
 
 ## Support
 
