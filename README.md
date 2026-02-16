@@ -3,6 +3,11 @@
 An enterprise-grade .NET application for automated testing of Microsoft Copilot Studio agents. Connect via Direct Line, evaluate responses using AI Foundry models, generate test cases from documents, and track performance with detailed reporting.
 
 
+## Pictures
+![](./assets/home.jpg)
+![](./assets/dashboard.jpg)
+![](./assets/test-run.jpg)
+
 
 
 ## Features
