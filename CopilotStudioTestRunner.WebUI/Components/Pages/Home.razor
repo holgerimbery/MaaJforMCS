@@ -88,9 +88,12 @@ else
                     <h2 style="margin: 0; font-size: 1.8em;">@pageTitle</h2>
                     <small style="color: rgba(255,255,255,0.8);">@pageDescription</small>
                 </div>
-                <div style="font-size: 2em; opacity: 0.3;">
-                    @pageIcon
-                </div>
+                @if (currentPage != "home")
+                {
+                    <div style="font-size: 2em; opacity: 0.3;">
+                        @pageIcon
+                    </div>
+                }
             </div>
 
             <!-- Content -->
