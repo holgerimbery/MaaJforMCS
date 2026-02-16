@@ -6,7 +6,7 @@ An enterprise-grade .NET application for automated testing of Microsoft Copilot 
 ## Pictures
 ![](./assets/home.jpg)
 ![](./assets/dashboard.jpg)
-![](./assets/test-run.jpg)
+![](./assets/testrun.jpg)
 
 
 
