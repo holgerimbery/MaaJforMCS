@@ -145,7 +145,7 @@
                 <label class="form-label" style="font-weight: 500;">Pass Threshold</label>
                 <div style="display: flex; gap: 10px;">
                     <input type="range" class="form-range" @bind="judgePassThreshold" min="0" max="1" step="0.05" style="flex: 1;" />
-                    <span style="min-width: 60px; color: #666;">@(judgePassThreshold * 100).ToString("F0")%</span>
+                    <span style="min-width: 60px; color: #666;">@((judgePassThreshold * 100).ToString("F0"))%</span>
                 </div>
                 <small class="form-text text-muted">Minimum score (0-100%) for test to pass</small>
             </div>
