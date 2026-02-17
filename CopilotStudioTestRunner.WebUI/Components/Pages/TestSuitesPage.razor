@@ -212,6 +212,9 @@
                                         }
                                     </div>
                                     <div style="display: flex; gap: 5px; margin-left: 10px;">
+                                        <button type="button" class="btn btn-sm btn-outline-info" @onclick="() => GenerateAdditionalQuestionsForTestCase(testCase.Id)" title="Generate 10 semantic variations" disabled="@isGeneratingQuestions">
+                                            <i class="bi bi-stars"></i>
+                                        </button>
                                         <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => EditTestCase(testCase.Id)" title="Edit this test case">
                                             <i class="bi bi-pencil"></i>
                                         </button>
@@ -600,6 +603,131 @@
         newTestCaseQuestion = "";
         newTestCaseExpectedAnswer = "";
         newTestCaseAcceptance = "";
+    }
+
+    private async Task GenerateAdditionalQuestionsForTestCase(Guid testCaseId)
+    {
+        try
+        {
+            if (DbContext == null || editingSuite == null) return;
+
+            var sourceTestCase = editingSuite.TestCases?.FirstOrDefault(tc => tc.Id == testCaseId);
+            if (sourceTestCase == null) return;
+
+            isGeneratingQuestions = true;
+            errorMsg = "";
+
+            var settings = await LoadQuestionGenSettings();
+            if (string.IsNullOrWhiteSpace(settings.Endpoint) || string.IsNullOrWhiteSpace(settings.ApiKey))
+            {
+                errorMsg = "Missing Azure OpenAI settings. Configure Judge settings in the Setup Wizard first.";
+                return;
+            }
+
+            var existingQuestion = sourceTestCase.UserInput?.FirstOrDefault() ?? sourceTestCase.Description ?? "";
+            if (string.IsNullOrWhiteSpace(existingQuestion))
+            {
+                errorMsg = "Test case has no question to generate variations from.";
+                return;
+            }
+
+            var documentContent = await BuildDocumentContent();
+            if (string.IsNullOrWhiteSpace(documentContent))
+            {
+                errorMsg = "No document content found. Upload documents for context before generating variations.";
+                return;
+            }
+
+            var allExistingQuestions = editingSuite.TestCases
+                .Select(tc => tc.UserInput?.FirstOrDefault() ?? tc.Description)
+                .Where(q => !string.IsNullOrWhiteSpace(q))
+                .ToList();
+
+            var userPrompt = "Generate 10 semantically different variations of this question. Use different wording, phrasing, and structure but ask for the same information:\n\n" +
+                "ORIGINAL: \"" + existingQuestion + "\"\n\n" +
+                "Return ONLY valid JSON array.";
+
+            var request = new QuestionGenerationRequest
+            {
+                DocumentContent = documentContent,
+                NumberOfQuestions = 10,
+                Domain = editingSuite.Name,
+                ExistingQuestions = allExistingQuestions
+            };
+
+            var aiQuestions = await QuestionGenerationService.GenerateQuestionsAsync(
+                request,
+                settings.Endpoint,
+                settings.ApiKey,
+                settings.Model);
+
+            if (aiQuestions == null || aiQuestions.Count == 0)
+            {
+                errorMsg = "No variations could be generated.";
+                return;
+            }
+
+            editingSuite.TestCases ??= new List<TestCase>();
+            var startingIndex = editingSuite.TestCases.Count + 1;
+            var generatedCount = 0;
+
+            foreach (var q in aiQuestions.Take(10))
+            {
+                try
+                {
+                    if (string.IsNullOrWhiteSpace(q.Question)) continue;
+
+                    var testCase = new TestCase
+                    {
+                        Id = Guid.NewGuid(),
+                        SuiteId = editingSuite.Id,
+                        Name = "Variation " + startingIndex.ToString(),
+                        Description = q.Question,
+                        UserInput = new[] { q.Question },
+                        ExpectedIntent = sourceTestCase.ExpectedIntent,
+                        ExpectedEntities = sourceTestCase.ExpectedEntities,
+                        AcceptanceCriteria = sourceTestCase.AcceptanceCriteria,
+                        ReferenceAnswer = sourceTestCase.ReferenceAnswer,
+                        Category = "variation",
+                        Priority = sourceTestCase.Priority,
+                        IsGenerated = true,
+                        TimeoutSeconds = sourceTestCase.TimeoutSeconds,
+                        MaxRetries = sourceTestCase.MaxRetries,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow,
+                        SourceDocumentId = sourceTestCase.SourceDocumentId
+                    };
+
+                    editingSuite.TestCases.Add(testCase);
+                    DbContext.TestCases.Add(testCase);
+                    generatedCount++;
+                    startingIndex++;
+                }
+                catch
+                {
+                    continue;
+                }
+            }
+
+            if (generatedCount > 0)
+            {
+                editingSuite.UpdatedAt = DateTime.UtcNow;
+                await DbContext.SaveChangesAsync();
+                successMsg = "Generated " + generatedCount.ToString() + " semantic variations";
+            }
+            else
+            {
+                errorMsg = "Could not generate valid question variations.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMsg = "Error generating variations: " + ex.Message;
+        }
+        finally
+        {
+            isGeneratingQuestions = false;
+        }
     }
 
     private async Task GenerateAiQuestions(bool replaceExisting)
