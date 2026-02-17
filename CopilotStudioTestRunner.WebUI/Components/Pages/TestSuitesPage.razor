@@ -10,10 +10,12 @@
 @using Microsoft.EntityFrameworkCore
 @using System.Text.Json
 @using System.IO
+@using Microsoft.AspNetCore.Components.Forms
 
 @inject IQuestionGenerationService QuestionGenerationService
 @inject ITestExecutionService ExecutionService
 @inject IJudgeService JudgeService
+@inject IJSRuntime JS
 
 <div style="max-width: 1200px;">
     <div style="display: flex; gap: 15px; margin-bottom: 20px;">
@@ -70,9 +72,20 @@
 
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 style="color: #0d47a1; margin: 0;"><i class="bi bi-list-check"></i> Test Cases (@editingSuite?.TestCases?.Count ?? 0)</h5>
-                    <button type="button" class="btn btn-sm btn-primary" @onclick="ShowAddTestCaseForm">
-                        <i class="bi bi-plus-circle"></i> Add Test Case
-                    </button>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn btn-sm btn-primary" @onclick="ShowAddTestCaseForm">
+                            <i class="bi bi-plus-circle"></i> Add Test Case
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-success" @onclick="DownloadTemplateCSV">
+                            <i class="bi bi-download"></i> Template
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-info" @onclick="ExportTestCasesCSV">
+                            <i class="bi bi-box-arrow-down"></i> Export
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-warning" @onclick="ShowImportForm">
+                            <i class="bi bi-box-arrow-up"></i> Import
+                        </button>
+                    </div>
                 </div>
 
                 <div class="mb-3" style="border: 1px dashed #cfd8dc; border-radius: 6px; padding: 12px; background-color: #f8fafc;">
@@ -125,6 +138,60 @@
                     </div>
                 }
 
+                @if (showEditTestCase)
+                {
+                    <div class="alert alert-warning" style="margin-bottom: 20px;">
+                        <h6><i class="bi bi-pencil"></i> Edit Test Case</h6>
+                        <div class="mb-2">
+                            <label class="form-label">Test Name</label>
+                            <input type="text" class="form-control" @bind="editingTestCaseName" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">User Input (Question)</label>
+                            <input type="text" class="form-control" @bind="editingTestCaseQuestion" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Expected Answer (optional)</label>
+                            <textarea class="form-control" @bind="editingTestCaseExpectedAnswer" rows="2"></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Acceptance Criteria</label>
+                            <textarea class="form-control" @bind="editingTestCaseAcceptance" rows="2"></textarea>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="button" class="btn btn-sm btn-success" @onclick="SaveTestCaseChanges" disabled="@string.IsNullOrWhiteSpace(editingTestCaseQuestion)">
+                                <i class="bi bi-check"></i> Save
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => { showEditTestCase = false; editingTestCase = null; }">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                }
+
+                @if (showImportForm)
+                {
+                    <div class="alert alert-warning" style="margin-bottom: 20px;">
+                        <h6><i class="bi bi-box-arrow-up"></i> Import Test Cases from CSV</h6>
+                        <p style="font-size: 0.9em; margin: 10px 0;">Upload a CSV file with 'question' and 'expectedResponse' columns.</p>
+                        <div class="mb-2">
+                            <InputFile accept=".csv" OnChange="HandleFileSelected" />
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="button" class="btn btn-sm btn-success" @onclick="ImportTestCasesFromCSV" disabled="@(!hasFileSelected)">
+                                <i class="bi bi-check"></i> Import
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => { showImportForm = false; hasFileSelected = false; importMsg = string.Empty; }">
+                                Cancel
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(importMsg))
+                        {
+                            <small style="display: block; margin-top: 10px; color: #666;">@importMsg</small>
+                        }
+                    </div>
+                }
+
                 @if (editingSuite?.TestCases != null && editingSuite.TestCases.Count > 0)
                 {
                     <div style="max-height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px;">
@@ -135,14 +202,23 @@
                                     <div style="flex: 1;">
                                         <strong style="color: #0d47a1;">@testCase.Name</strong>
                                         <p style="margin: 5px 0; font-size: 0.9em;"><i class="bi bi-chat-left-text"></i> @(testCase.UserInput?.FirstOrDefault() ?? testCase.Description ?? "No question")</p>
+                                        @if (!string.IsNullOrWhiteSpace(testCase.ReferenceAnswer))
+                                        {
+                                            <small style="display: block; color: #0d47a1; margin-top: 5px;"><i class="bi bi-check2-circle"></i> <strong>Expected:</strong> @testCase.ReferenceAnswer</small>
+                                        }
                                         @if (!string.IsNullOrWhiteSpace(testCase.AcceptanceCriteria))
                                         {
-                                            <small style="color: #666;"><i class="bi bi-check-circle"></i> @testCase.AcceptanceCriteria</small>
+                                            <small style="color: #666; display: block; margin-top: 5px;"><i class="bi bi-check-circle"></i> @testCase.AcceptanceCriteria</small>
                                         }
                                     </div>
-                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteTestCase(testCase.Id)" style="margin-left: 10px;">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+                                    <div style="display: flex; gap: 5px; margin-left: 10px;">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => EditTestCase(testCase.Id)" title="Edit this test case">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteTestCase(testCase.Id)" title="Delete this test case">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         }
@@ -283,8 +359,18 @@
     private string newTestCaseQuestion = "";
     private string newTestCaseExpectedAnswer = "";
     private string newTestCaseAcceptance = "";
+    private bool showEditTestCase = false;
+    private TestCase? editingTestCase;
+    private string editingTestCaseName = "";
+    private string editingTestCaseQuestion = "";
+    private string editingTestCaseExpectedAnswer = "";
+    private string editingTestCaseAcceptance = "";
     private bool isGeneratingQuestions = false;
     private int aiQuestionCount = 10;
+    private bool showImportForm = false;
+    private IBrowserFile? selectedImportFile;
+    private bool hasFileSelected = false;
+    private string importMsg = "";
     private const string CONFIG_FILE = "./data/settings.json";
 
     protected override async Task OnInitializedAsync()
@@ -756,6 +842,269 @@
         {
             errorMsg = $"Error deleting test case: {ex.Message}";
         }
+    }
+
+    private void EditTestCase(Guid testCaseId)
+    {
+        if (editingSuite?.TestCases == null) return;
+
+        editingTestCase = editingSuite.TestCases.FirstOrDefault(tc => tc.Id == testCaseId);
+        if (editingTestCase == null) return;
+
+        editingTestCaseName = editingTestCase.Name;
+        editingTestCaseQuestion = editingTestCase.UserInput?.FirstOrDefault() ?? editingTestCase.Description ?? "";
+        editingTestCaseExpectedAnswer = editingTestCase.ReferenceAnswer ?? "";
+        editingTestCaseAcceptance = editingTestCase.AcceptanceCriteria ?? "";
+        showEditTestCase = true;
+    }
+
+    private async Task SaveTestCaseChanges()
+    {
+        try
+        {
+            if (DbContext == null || editingSuite == null || editingTestCase == null) return;
+            if (string.IsNullOrWhiteSpace(editingTestCaseQuestion)) return;
+
+            editingTestCase.Name = editingTestCaseName;
+            editingTestCase.Description = editingTestCaseQuestion;
+            editingTestCase.UserInput = new[] { editingTestCaseQuestion };
+            editingTestCase.ReferenceAnswer = string.IsNullOrWhiteSpace(editingTestCaseExpectedAnswer) 
+                ? null 
+                : editingTestCaseExpectedAnswer;
+            editingTestCase.AcceptanceCriteria = string.IsNullOrWhiteSpace(editingTestCaseAcceptance) 
+                ? "Response should be relevant and accurate" 
+                : editingTestCaseAcceptance;
+            editingTestCase.UpdatedAt = DateTime.UtcNow;
+
+            await DbContext.SaveChangesAsync();
+            successMsg = "Test case updated successfully";
+            showEditTestCase = false;
+            editingTestCase = null;
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error saving test case: {ex.Message}";
+        }
+    }
+
+    private void ShowImportForm()
+    {
+        showImportForm = true;
+        importMsg = "";
+        hasFileSelected = false;
+    }
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedImportFile = e.File;
+        hasFileSelected = e.File != null;
+        importMsg = hasFileSelected ? $"Selected: {e.File.Name}" : "";
+    }
+
+    private async Task DownloadTemplateCSV()
+    {
+        try
+        {
+            var templatePath = "assets/EvaluationTemplate.csv";
+            if (!File.Exists(templatePath))
+            {
+                errorMsg = "Template file not found";
+                return;
+            }
+
+            var content = await File.ReadAllTextAsync(templatePath);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+            
+            // Trigger browser download
+            await JS.InvokeVoidAsync("downloadFile", bytes, "evaluation-template.csv", "text/csv");
+            successMsg = "Template downloaded successfully";
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error downloading template: {ex.Message}";
+        }
+    }
+
+    private async Task ExportTestCasesCSV()
+    {
+        try
+        {
+            if (editingSuite == null || editingSuite.TestCases == null || editingSuite.TestCases.Count == 0)
+            {
+                errorMsg = "No test cases to export";
+                return;
+            }
+
+            var csv = new System.Text.StringBuilder();
+            csv.AppendLine("\"question\",\"expectedResponse\"");
+
+            foreach (var testCase in editingSuite.TestCases)
+            {
+                var question = testCase.UserInput?.FirstOrDefault() ?? testCase.Description ?? "";
+                var expectedResponse = testCase.ReferenceAnswer ?? testCase.AcceptanceCriteria ?? "";
+                
+                // Escape quotes in CSV
+                question = question.Replace("\"", "\"\"");
+                expectedResponse = expectedResponse.Replace("\"", "\"\"");
+                
+                csv.AppendLine($"\"{question}\",\"{expectedResponse}\"");
+            }
+
+            var content = csv.ToString();
+            var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+            var fileName = $"{editingSuite.Name.Replace(" ", "-")}-test-cases.csv";
+            
+            // Trigger browser download
+            await JS.InvokeVoidAsync("downloadFile", bytes, fileName, "text/csv");
+            successMsg = $"Exported {editingSuite.TestCases.Count} test cases";
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error exporting test cases: {ex.Message}";
+        }
+    }
+
+    private async Task ImportTestCasesFromCSV()
+    {
+        try
+        {
+            if (selectedImportFile == null || !hasFileSelected)
+            {
+                importMsg = "Please select a CSV file";
+                return;
+            }
+
+            var file = selectedImportFile;
+            if (DbContext == null || editingSuite == null) return;
+
+            using var stream = file.OpenReadStream(maxAllowedSize: 1024 * 1024); // 1MB max
+            using var reader = new System.IO.StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+
+            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            
+            if (lines.Length < 2)
+            {
+                importMsg = "CSV file must have at least a header row";
+                return;
+            }
+
+            // Parse header
+            var headerLine = lines[0];
+            var headers = ParseCsvLine(headerLine);
+            
+            var questionIndex = headers.FindIndex(h => h.Equals("question", StringComparison.OrdinalIgnoreCase));
+            var responseIndex = headers.FindIndex(h => h.Equals("expectedResponse", StringComparison.OrdinalIgnoreCase));
+
+            if (questionIndex == -1)
+            {
+                importMsg = "CSV must have a 'question' column";
+                return;
+            }
+
+            var importedCount = 0;
+            var startingIndex = (editingSuite.TestCases?.Count ?? 0) + 1;
+
+            for (int i = 1; i < lines.Length; i++)
+            {
+                if (string.IsNullOrWhiteSpace(lines[i])) continue;
+
+                var values = ParseCsvLine(lines[i]);
+                if (values.Count == 0 || string.IsNullOrWhiteSpace(values[questionIndex])) continue;
+
+                var question = values[questionIndex];
+                var expectedResponse = responseIndex >= 0 && responseIndex < values.Count 
+                    ? values[responseIndex] 
+                    : "";
+
+                if (question.Length > 500)
+                {
+                    question = question.Substring(0, 500);
+                }
+
+                var testCase = new TestCase
+                {
+                    Id = Guid.NewGuid(),
+                    SuiteId = editingSuite.Id,
+                    Name = $"Imported Test {startingIndex++}",
+                    Description = question,
+                    UserInput = new[] { question },
+                    ReferenceAnswer = string.IsNullOrWhiteSpace(expectedResponse) ? null : expectedResponse,
+                    AcceptanceCriteria = string.IsNullOrWhiteSpace(expectedResponse) 
+                        ? "Response should be relevant and accurate"
+                        : expectedResponse,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                editingSuite.TestCases ??= new List<TestCase>();
+                editingSuite.TestCases.Add(testCase);
+                DbContext.TestCases.Add(testCase);
+                importedCount++;
+
+                if (importedCount >= 100)
+                {
+                    importMsg = "Maximum 100 questions allowed per import";
+                    break;
+                }
+            }
+
+            if (importedCount == 0)
+            {
+                importMsg = "No valid test cases found in CSV";
+                return;
+            }
+
+            editingSuite.UpdatedAt = DateTime.UtcNow;
+            await DbContext.SaveChangesAsync();
+
+            successMsg = $"Successfully imported {importedCount} test cases";
+            showImportForm = false;
+            selectedImportFile = null;
+            hasFileSelected = false;
+            importMsg = "";
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error importing test cases: {ex.Message}";
+        }
+    }
+
+    private List<string> ParseCsvLine(string line)
+    {
+        var values = new List<string>();
+        var currentValue = new System.Text.StringBuilder();
+        var inQuotes = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            var c = line[i];
+
+            if (c == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    currentValue.Append('"');
+                    i++;
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                }
+            }
+            else if (c == ',' && !inQuotes)
+            {
+                values.Add(currentValue.ToString());
+                currentValue.Clear();
+            }
+            else
+            {
+                currentValue.Append(c);
+            }
+        }
+
+        values.Add(currentValue.ToString());
+        return values;
     }
 
     private class ConfigData
