@@ -3,121 +3,124 @@
 @using Microsoft.EntityFrameworkCore
 @page "/test-run-report/{RunId}"
 
-@if (!string.IsNullOrEmpty(errorMessage))
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
-        <i class="bi bi-exclamation-triangle"></i> @errorMessage
-        <button type="button" class="btn-close" @onclick="@((e) => { errorMessage = null; })"></button>
+<div style="max-width: 1400px;">
+    <!-- Page Header -->
+    <div style="background-color: #ffffff; padding: 24px 32px; border-bottom: 1px solid #e8eaed; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 32px;">
+        <nav style="font-size: 0.9em; color: var(--text-secondary); margin-bottom: 12px;">
+            <a href="/dashboard" style="color: var(--primary); text-decoration: none; font-weight: 500;">Dashboard</a>
+            <span style="margin: 0 8px; color: var(--text-tertiary);">/</span>
+            <span style="color: var(--text-secondary);">Test Run Report</span>
+        </nav>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <h1 style="margin: 0 0 8px 0; font-size: 28px; font-weight: 700; color: var(--text-primary);">@(run?.Suite?.Name ?? "Test Suite") - Test Run Report</h1>
+                <p style="margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5;">
+                    @if (run != null)
+                    {
+                        <span>Executed on @run.StartedAt.ToString("MMMM dd, yyyy \\a\\t HH:mm:ss")</span>
+                    }
+                </p>
+            </div>
+            <a href="/dashboard" class="btn btn-outline-primary" style="padding: 8px 16px; border-color: var(--primary); color: var(--primary); font-weight: 500;">
+                <i class="bi bi-chevron-left"></i> Back to Dashboard
+            </a>
+        </div>
     </div>
-}
 
-@if (isLoading)
-{
-    <div style="text-align: center; padding: 40px;">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-        </div>
-        <p style="margin-top: 15px; color: #666;">Loading test run report...</p>
-    </div>
-}
-else if (run == null)
-{
-    <div class="alert alert-warning">
-        <p>Test run not found.</p>
-        <a href="/test-suites" class="btn btn-primary btn-sm">Back to Test Suites</a>
-    </div>
-}
-else
-{
-    <!-- Breadcrumb Navigation -->
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; padding: 0 0 15px 0; border-bottom: 1px solid #e0e0e0;">
-        <div>
-            <nav style="font-size: 0.9em; color: #666; margin-bottom: 8px;">
-                <a href="/dashboard" style="color: #0d47a1; text-decoration: none;">Dashboard</a>
-                <span style="margin: 0 8px; color: #999;">/</span>
-                <span style="color: #999;">@(run.Suite?.Name ?? "Test Run")</span>
-            </nav>
-            <h3 style="margin: 0 0 4px 0; color: #333;">@(run.Suite?.Name ?? "Test Suite") - Test Run Report</h3>
-            <p style="margin: 0; color: #999; font-size: 0.85em;">Executed on @run.StartedAt.ToString("MMMM dd, yyyy \\a\\t HH:mm:ss")</p>
-        </div>
-        <a href="/dashboard" class="btn btn-outline-primary" style="padding: 8px 16px; border-color: #0d47a1; color: #0d47a1; font-weight: 500;">
-            <i class="bi bi-chevron-left"></i> Back to Dashboard
-        </a>
-    </div>
+    <!-- Page Content -->
+    <div style="padding: 0 32px;">
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show slide-in-left" role="alert" style="margin-bottom: 20px;">
+                <i class="bi bi-exclamation-triangle"></i> @errorMessage
+                <button type="button" class="btn-close" @onclick="@((e) => { errorMessage = null; })"></button>
+            </div>
+        }
+
+        @if (isLoading)
+        {
+            <div style="text-align: center; padding: 40px; background: var(--card-bg); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p style="margin-top: 15px; color: var(--text-secondary);">Loading test run report...</p>
+            </div>
+        }
+        else if (run == null)
+        {
+            <div class="alert alert-warning">
+                <p>Test run not found.</p>
+                <a href="/test-suites" class="btn btn-primary btn-sm">Back to Test Suites</a>
+            </div>
+        }
+        else
+        {
 
         <!-- Summary Cards -->
-        <div class="row mb-4">
-            <div class="col-md-3 mb-3">
-                <div class="summary-card">
-                    <div class="card-label">Overall Score</div>
-                    <div class="card-value">@(results.Any() ? (results.Average(r => r.OverallScore ?? 0) * 100).ToString("F1") : "0")<span class="card-unit">%</span></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 32px;">
+            <div class="summary-card fade-in" style="animation-delay: 0.1s;">
+                <div class="card-label">Overall Score</div>
+                <div class="card-value">@(results.Any() ? (results.Average(r => r.OverallScore ?? 0) * 100).ToString("F1") : "0")<span class="card-unit">%</span></div>
+            </div>
+            <div class="summary-card fade-in" style="animation-delay: 0.2s;">
+                <div class="card-label">Pass Rate</div>
+                <div class="card-value" style="color: var(--success);">@(run.TotalTestCases > 0 ? (100.0 * run.PassedCount / run.TotalTestCases).ToString("F1") : "0")<span class="card-unit">%</span></div>
+            </div>
+            <div class="summary-card fade-in" style="animation-delay: 0.3s;">
+                <div class="card-label">Results</div>
+                <div style="font-size: 1.3em; font-weight: 600; color: var(--primary); margin: 8px 0;">
+                    <span style="color: var(--success);">@run.PassedCount</span> / <span style="color: var(--danger);">@run.FailedCount</span>
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
-                <div class="summary-card">
-                    <div class="card-label">Pass Rate</div>
-                    <div class="card-value" style="color: #4caf50;">@(run.TotalTestCases > 0 ? (100.0 * run.PassedCount / run.TotalTestCases).ToString("F1") : "0")<span class="card-unit">%</span></div>
-                </div>
-            </div>
-            <div class="col-md-3 mb-3">
-                <div class="summary-card">
-                    <div class="card-label">Results</div>
-                    <div style="font-size: 1.3em; font-weight: 600; color: #0d47a1; margin: 8px 0;">
-                        <span style="color: #4caf50;">@run.PassedCount</span> / <span style="color: #f44336;">@run.FailedCount</span>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3 mb-3">
-                <div class="summary-card">
-                    <div class="card-label">Latency</div>
-                    <div class="card-value" style="color: #ff9800;">@(run.AverageLatencyMs.ToString("F0"))<span class="card-unit">ms</span></div>
-                </div>
+            <div class="summary-card fade-in" style="animation-delay: 0.4s;">
+                <div class="card-label">Latency</div>
+                <div class="card-value" style="color: var(--accent);">@(run.AverageLatencyMs.ToString("F0"))<span class="card-unit">ms</span></div>
             </div>
         </div>
 
         <!-- Run Details -->
-    <div style="background: white; padding: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px;">
-        <h5 style="margin-bottom: 15px; color: #0d47a1; font-size: 1em;">
+    <div style="background: var(--card-bg); padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px; border: 1px solid var(--border);">
+        <h5 style="margin-bottom: 20px; color: var(--primary); font-size: 1em; font-weight: 600;">
             <i class="bi bi-info-circle"></i> Run Details
         </h5>
-        <div class="row" style="font-size: 0.9em;">
-            <div class="col-md-3">
-                <span style="color: #999;">Started</span>
-                <div style="font-weight: 500; margin-top: 4px;">@run.StartedAt.ToString("MMM dd, HH:mm:ss")</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; font-size: 0.9em;">
+            <div>
+                <span style="color: var(--text-secondary); font-weight: 500;">Started</span>
+                <div style="font-weight: 600; margin-top: 8px; color: var(--text-primary);">@run.StartedAt.ToString("MMM dd, HH:mm:ss")</div>
             </div>
-            <div class="col-md-3">
-                <span style="color: #999;">Duration</span>
-                <div style="font-weight: 500; margin-top: 4px;">
+            <div>
+                <span style="color: var(--text-secondary); font-weight: 500;">Duration</span>
+                <div style="font-weight: 600; margin-top: 8px; color: var(--text-primary);">
                     @if (run.CompletedAt.HasValue)
                     {
                         <span>@((run.CompletedAt.Value - run.StartedAt).TotalSeconds.ToString("F1"))s</span>
                     }
                     else
                     {
-                        <span style="color: #ff9800;">In Progress</span>
+                        <span style="color: var(--accent);">In Progress</span>
                     }
                 </div>
             </div>
-            <div class="col-md-3">
-                <span style="color: #999;">Status</span>
-                <div style="margin-top: 4px;">
+            <div>
+                <span style="color: var(--text-secondary); font-weight: 500;">Status</span>
+                <div style="margin-top: 8px;">
                     @if (run.Status == "completed")
                     {
-                        <span style="background-color: #e8f5e9; color: #2e7d32; padding: 3px 8px; border-radius: 3px; font-weight: 500; font-size: 0.8em;">✓ Completed</span>
+                        <span style="background-color: rgba(16, 185, 129, 0.1); color: var(--success); padding: 4px 10px; border-radius: 6px; font-weight: 500; font-size: 0.85em; display: inline-block;">✓ Completed</span>
                     }
                     else if (run.Status == "failed")
                     {
-                        <span style="background-color: #ffebee; color: #c62828; padding: 3px 8px; border-radius: 3px; font-weight: 500; font-size: 0.8em;">✗ Failed</span>
+                        <span style="background-color: rgba(239, 68, 68, 0.1); color: var(--danger); padding: 4px 10px; border-radius: 6px; font-weight: 500; font-size: 0.85em; display: inline-block;">✗ Failed</span>
                     }
                     else
                     {
-                        <span style="background-color: #e3f2fd; color: #0d47a1; padding: 3px 8px; border-radius: 3px; font-weight: 500; font-size: 0.8em;">⏳ Running</span>
+                        <span style="background-color: rgba(59, 130, 246, 0.1); color: var(--info); padding: 4px 10px; border-radius: 6px; font-weight: 500; font-size: 0.85em; display: inline-block;">⏳ Running</span>
                     }
                 </div>
             </div>
-            <div class="col-md-3">
-                <span style="color: #999;">Model</span>
-                <div style="font-weight: 500; margin-top: 4px;">@(run.ModelVersion ?? "Not specified")</div>
+            <div>
+                <span style="color: var(--text-secondary); font-weight: 500;">Model</span>
+                <div style="font-weight: 600; margin-top: 8px; color: var(--text-primary);">@(run.ModelVersion ?? "Not specified")</div>
             </div>
         </div>
     </div>
@@ -336,57 +339,71 @@ else
             }
         </div>
     }
-}
+    </div>
+</div>
 
 <style>
-.summary-card {
-    background: white;
-    padding: 20px;
-    border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    border-top: 3px solid #0d47a1;
+    background: var(--card-bg);
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid var(--border);
+    animation: fadeIn 0.4s ease-out;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 .card-label {
     font-size: 0.8em;
-    color: #999;
+    color: var(--text-secondary);
     font-weight: 500;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .card-value {
     font-size: 2em;
     font-weight: 700;
-    color: #0d47a1;
+    color: var(--primary);
 }
 
 .card-unit {
     font-size: 0.5em;
-    margin-left: 2px;
+    margin-left: 4px;
 }
 
 .score-bar-container {
-    margin-bottom: 16px;
+    margin-bottom: 20px;
 }
 
 .score-bar-label {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     font-size: 0.9em;
+    font-weight: 500;
 }
 
 .score-bar {
-    height: 8px;
-    background-color: #e0e0e0;
-    border-radius: 4px;
+    height: 10px;
+    background-color: var(--border);
+    border-radius: 6px;
     overflow: hidden;
 }
 
 .score-bar-fill {
     height: 100%;
-    background-color: #0d47a1;
+    background-color: var(--primary);
     transition: width 0.3s ease;
+}
+
+.fade-in {
+    animation: fadeIn 0.4s ease-out;
 }
 </style>
 

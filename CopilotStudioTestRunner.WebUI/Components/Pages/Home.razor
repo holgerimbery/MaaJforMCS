@@ -1,262 +1,240 @@
 @page "/"
+@page "/home"
+@layout MainLayout
 @using CopilotStudioTestRunner.Data
-@using CopilotStudioTestRunner.Domain.Entities
-@using Microsoft.AspNetCore.Components.Web
 @using Microsoft.EntityFrameworkCore
-@using System.IO
-@using System.Text.Json
-@inject TestRunnerDbContext DbContext
+@using Microsoft.AspNetCore.Components.Web
 
-<PageTitle>Copilot Studio Test Runner</PageTitle>
+<PageTitle>Copilot Studio Test Runner - Home</PageTitle>
 
-@if (showWizard)
-{
-    <!-- Wizard Mode - Full Screen -->
-    <div style="min-height: 100vh; background: linear-gradient(135deg, #0d47a1 0%, #1565c0 50%, #1976d2 100%); padding: 40px 20px;">
-        <div style="max-width: 1200px; margin: 0 auto;">
-            <div style="text-align: center; color: white; margin-bottom: 40px;">
-                <h1 style="font-size: 2.5em; margin-bottom: 10px;">
-                    <i class="bi bi-robot"></i> Copilot Studio Test Runner
-                </h1>
-                <p style="font-size: 1.2em; opacity: 0.9;">Guided Setup & Testing Wizard</p>
+<div style="margin-bottom: 48px;" class="fade-in">
+    <h1 style="font-size: 32px; font-weight: 700; color: #1f1f23; margin: 0 0 8px 0;">What would you like to do?</h1>
+    <p style="font-size: 15px; color: #5f5f5f; margin: 0; line-height: 1.5;">Choose an action below to get started with testing your Copilot Studio bot</p>
+</div>
+
+<!-- Action Cards Grid -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 48px;">
+    <div class="action-card fade-in" style="animation-delay: 0.1s;" @onclick="GoTestSuites">
+        <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #0066cc, #003d99); border-radius: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; flex-shrink: 0;">
+            <i class="bi bi-list-check" style="font-size: 28px;"></i>
+        </div>
+        <h3 style="font-size: 16px; font-weight: 600; color: #1f1f23; margin: 0 0 8px 0;">Create Test Suite</h3>
+        <p style="font-size: 14px; color: #5f5f5f; margin: 0; line-height: 1.5;">Build and manage test suites with AI-generated or manual test cases</p>
+    </div>
+
+    <div class="action-card fade-in" style="animation-delay: 0.2s;" @onclick="GoDocuments">
+        <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #8b5cf6, #6d28d9); border-radius: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; flex-shrink: 0;">
+            <i class="bi bi-file-earmark-text" style="font-size: 28px;"></i>
+        </div>
+        <h3 style="font-size: 16px; font-weight: 600; color: #1f1f23; margin: 0 0 8px 0;">Upload Documents</h3>
+        <p style="font-size: 14px; color: #5f5f5f; margin: 0; line-height: 1.5;">Upload documents to generate test questions or provide context</p>
+    </div>
+
+    <div class="action-card fade-in" style="animation-delay: 0.3s;" @onclick="GoDashboard">
+        <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #06b6d4, #0891b2); border-radius: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; flex-shrink: 0;">
+            <i class="bi bi-graph-up" style="font-size: 28px;"></i>
+        </div>
+        <h3 style="font-size: 16px; font-weight: 600; color: #1f1f23; margin: 0 0 8px 0;">View Dashboard</h3>
+        <p style="font-size: 14px; color: #5f5f5f; margin: 0; line-height: 1.5;">Monitor test results and view performance metrics</p>
+    </div>
+
+    <div class="action-card fade-in" style="animation-delay: 0.4s;" @onclick="GoWizard">
+        <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; flex-shrink: 0;">
+            <i class="bi bi-magic" style="font-size: 28px;"></i>
+        </div>
+        <h3 style="font-size: 16px; font-weight: 600; color: #1f1f23; margin: 0 0 8px 0;">Setup Wizard</h3>
+        <p style="font-size: 14px; color: #5f5f5f; margin: 0; line-height: 1.5;">Guided setup for DirectLine and Judge configuration</p>
+    </div>
+</div>
+
+<!-- Getting Started Section -->
+<div class="fade-in" style="background-color: #ffffff; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 40px; border: 1px solid #e8eaed; animation-delay: 0.5s;">
+    <h3 style="font-size: 18px; font-weight: 600; color: #1f1f23; margin: 0 0 24px 0;">Getting Started</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
+        <div style="display: flex; gap: 16px; animation-delay: 0.6s;" class="slide-in-left">
+            <div style="width: 32px; height: 32px; background-color: #e6f0ff; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <span style="font-size: 16px; font-weight: 700; color: #0066cc;">1</span>
             </div>
-            
-            <SetupWizard />
-            
-            <div style="text-align: center; margin-top: 30px;">
-                <button class="btn btn-outline-light" @onclick="ExitWizard">
-                    <i class="bi bi-x-circle"></i> Exit Wizard
-                </button>
+            <div>
+                <h4 style="font-size: 14px; font-weight: 600; color: #1f1f23; margin: 0 0 4px 0;">Configure Settings</h4>
+                <p style="font-size: 13px; color: #5f5f5f; margin: 0; line-height: 1.5;">Set up your DirectLine secret and Judge (Azure OpenAI) endpoints</p>
+            </div>
+        </div>
+        <div style="display: flex; gap: 16px; animation-delay: 0.7s;" class="slide-in-left">
+            <div style="width: 32px; height: 32px; background-color: #f3e8ff; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <span style="font-size: 16px; font-weight: 700; color: #8b5cf6;">2</span>
+            </div>
+            <div>
+                <h4 style="font-size: 14px; font-weight: 600; color: #1f1f23; margin: 0 0 4px 0;">Upload Documents</h4>
+                <p style="font-size: 13px; color: #5f5f5f; margin: 0; line-height: 1.5;">Add documents to generate AI questions or provide context</p>
+            </div>
+        </div>
+        <div style="display: flex; gap: 16px; animation-delay: 0.8s;" class="slide-in-left">
+            <div style="width: 32px; height: 32px; background-color: #cffafe; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <span style="font-size: 16px; font-weight: 700; color: #06b6d4;">3</span>
+            </div>
+            <div>
+                <h4 style="font-size: 14px; font-weight: 600; color: #1f1f23; margin: 0 0 4px 0;">Create Test Suites</h4>
+                <p style="font-size: 13px; color: #5f5f5f; margin: 0; line-height: 1.5;">Build test suites with AI-generated or manually added questions</p>
+            </div>
+        </div>
+        <div style="display: flex; gap: 16px; animation-delay: 0.9s;" class="slide-in-left">
+            <div style="width: 32px; height: 32px; background-color: #fef3c7; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <span style="font-size: 16px; font-weight: 700; color: #f59e0b;">4</span>
+            </div>
+            <div>
+                <h4 style="font-size: 14px; font-weight: 600; color: #1f1f23; margin: 0 0 4px 0;">Run Tests & Review</h4>
+                <p style="font-size: 13px; color: #5f5f5f; margin: 0; line-height: 1.5;">Execute test suites and evaluate results with AI-powered Judge</p>
             </div>
         </div>
     </div>
-}
-else
+</div>
+
+<!-- Quick Stats -->
+@if (dbContext != null)
 {
-    <!-- Normal Mode - Sidebar Navigation -->
-    <div style="display: flex; min-height: 100vh; background-color: #f5f5f5;">
-        <!-- Sidebar Navigation -->
-        <div style="width: 250px; background-color: #1a1a1a; color: white; position: fixed; height: 100vh; overflow-y: auto; box-shadow: 2px 0 4px rgba(0,0,0,0.1);">
-            <div style="padding: 20px; border-bottom: 1px solid #333; text-align: center;">
-                <h5 style="margin: 0 0 5px 0; color: white; font-size: 1.2em;">
-                    <i class="bi bi-cpu"></i> Copilot Studio
-                </h5>
-                <small style="color: #aaa;">Test Runner</small>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+        <div class="stat-card fade-in" style="animation-delay: 1s;">
+            <div style="display: flex; align-items: flex-end; gap: 12px; margin-bottom: 8px;">
+                <div style="font-size: 32px; font-weight: 700; color: #0066cc;">@totalSuites</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: #5f5f5f; letter-spacing: 0.5px;">Total</div>
             </div>
-            
-            <div style="padding: 20px 0;">
-                <div class="nav-item @(currentPage == "home" ? "active" : "")" @onclick="@(() => Navigate("home"))">
-                    <i class="bi bi-house" style="width: 18px;"></i> <span>Home</span>
-                </div>
-                <div class="nav-item @(currentPage == "wizard" ? "active" : "")" @onclick="@(() => Navigate("wizard"))">
-                    <i class="bi bi-magic" style="width: 18px;"></i> <span>Quick Start Wizard</span>
-                </div>
-                <div class="nav-item @(currentPage == "settings" ? "active" : "")" @onclick="@(() => Navigate("settings"))">
-                    <i class="bi bi-gear" style="width: 18px;"></i> <span>Settings</span>
-                </div>
-                <div class="nav-item @(currentPage == "dashboard" ? "active" : "")" @onclick="@(() => Navigate("dashboard"))">
-                    <i class="bi bi-graph-up" style="width: 18px;"></i> <span>Dashboard</span>
-                </div>
-                <div class="nav-item @(currentPage == "test-suites" ? "active" : "")" @onclick="@(() => Navigate("test-suites"))">
-                    <i class="bi bi-list-check" style="width: 18px;"></i> <span>Test Suites</span>
-                </div>
-                <div class="nav-item @(currentPage == "documents" ? "active" : "")" @onclick="@(() => Navigate("documents"))">
-                    <i class="bi bi-file-earmark" style="width: 18px;"></i> <span>Documents</span>
-                </div>
-            </div>
-
-            <hr style="margin: 20px 0; border-color: #333;" />
-            <div style="padding: 0 20px; font-size: 0.9em;">
-                <div style="margin-bottom: 10px;">
-                    <strong style="color: white;">System Status</strong><br />
-                    <span style="color: #4caf50;"><i class="bi bi-circle-fill" style="font-size: 0.6em;"></i> Online</span>
-                </div>
-                <div>
-                    <strong style="color: white;">Configuration</strong><br />
-                    <span id="config-status" style="color: @(configReady ? "#4caf50" : "#ff9800");">
-                        <i class="bi bi-circle-fill" style="font-size: 0.6em;"></i> @(configReady ? "Ready" : "Pending Setup")
-                    </span>
-                </div>
-            </div>
+            <div style="font-size: 13px; color: #5f5f5f;">Test Suites</div>
         </div>
-
-        <!-- Main Content Area -->
-        <div style="margin-left: 250px; width: calc(100% - 250px); display: flex; flex-direction: column;">
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); color: white; padding: 20px 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h2 style="margin: 0; font-size: 1.8em;">@pageTitle</h2>
-                    <small style="color: rgba(255,255,255,0.8);">@pageDescription</small>
-                </div>
-                @if (currentPage != "home")
-                {
-                    <div style="font-size: 2em; opacity: 0.3;">
-                        @pageIcon
-                    </div>
-                }
+        <div class="stat-card fade-in" style="animation-delay: 1.1s;">
+            <div style="display: flex; align-items: flex-end; gap: 12px; margin-bottom: 8px;">
+                <div style="font-size: 32px; font-weight: 700; color: #8b5cf6;">@totalDocuments</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: #5f5f5f; letter-spacing: 0.5px;">Total</div>
             </div>
-
-            <!-- Content -->
-            <div style="flex: 1; padding: 30px; overflow-y: auto;">
-                @if (currentPage == "home")
-                {
-                    <WelcomePage />
-                }
-                else if (currentPage == "wizard")
-                {
-                    <SetupWizard />
-                }
-                else if (currentPage == "settings")
-                {
-                    <SettingsPage ConfigUpdated="@HandleConfigUpdate" />
-                }
-                else if (currentPage == "dashboard")
-                {
-                    <DashboardPage />
-                }
-                else if (currentPage == "test-suites")
-                {
-                    <TestSuitesPage />
-                }
-                else if (currentPage == "documents")
-                {
-                    <DocumentsPage />
-                }
+            <div style="font-size: 13px; color: #5f5f5f;">Documents</div>
+        </div>
+        <div class="stat-card fade-in" style="animation-delay: 1.2s;">
+            <div style="display: flex; align-items: flex-end; gap: 12px; margin-bottom: 8px;">
+                <div style="font-size: 32px; font-weight: 700; color: #06b6d4;">@totalTestCases</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: #5f5f5f; letter-spacing: 0.5px;">Total</div>
             </div>
+            <div style="font-size: 13px; color: #5f5f5f;">Test Cases</div>
+        </div>
+        <div class="stat-card fade-in" style="animation-delay: 1.3s;">
+            <div style="display: flex; align-items: flex-end; gap: 12px; margin-bottom: 8px;">
+                <div style="font-size: 32px; font-weight: 700; color: #f59e0b;">@totalRuns</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: #5f5f5f; letter-spacing: 0.5px;">Total</div>
+            </div>
+            <div style="font-size: 13px; color: #5f5f5f;">Test Runs</div>
         </div>
     </div>
 }
 
 <style>
-.nav-item {
-    padding: 12px 20px;
+.action-card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     cursor: pointer;
-    transition: background-color 0.2s, border-color 0.2s;
-    border-left: 3px solid transparent;
-    color: #ddd;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid #e8eaed;
     display: flex;
-    align-items: center;
-    gap: 10px;
-    user-select: none;
+    flex-direction: column;
 }
 
-.nav-item:hover {
-    background-color: #333;
-    color: white;
+.action-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.12);
+    border-color: #0066cc;
 }
 
-.nav-item.active {
-    background-color: #0d47a1;
-    border-left-color: #1976d2;
-    color: white;
-    font-weight: 500;
+.action-card:active {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
 }
 
-.nav-item span {
-    display: inline-block;
+.action-card.fade-in {
+    animation: fadeIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.stat-card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid #e8eaed;
+    transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.stat-card.fade-in {
+    animation: fadeIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.slide-in-left {
+    animation: slideInLeft 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.fade-in {
+    animation: fadeIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 </style>
 
 @code {
-    private string currentPage = "home";
-    private string pageTitle = "Welcome";
-    private string pageDescription = "Get started with Copilot Studio Test Runner";
-    private string pageIcon = "🏠";
-    private bool configReady = false;
-    private bool showWizard = false;
-    private const string CONFIG_FILE = "./data/settings.json";
+    [Inject]
+    private TestRunnerDbContext? dbContext { get; set; }
+    
+    [Inject]
+    private NavigationManager? navigationManager { get; set; }
+
+    private int totalSuites = 0;
+    private int totalDocuments = 0;
+    private int totalTestCases = 0;
+    private int totalRuns = 0;
 
     protected override async Task OnInitializedAsync()
     {
-        // Check if this is first time setup
-        await CheckConfiguration();
+        if (dbContext == null) return;
 
-        // Show wizard if no configuration exists
-        if (!configReady)
-        {
-            showWizard = true;
-        }
-    }
-
-    private void Navigate(string page)
-    {
-        currentPage = page;
-        
-        // Handle wizard navigation
-        if (page == "wizard")
-        {
-            showWizard = true;
-            return;
-        }
-        
-        showWizard = false;
-        
-        (pageTitle, pageDescription, pageIcon) = page switch
-        {
-            "home" => ("Welcome", "Get started with Copilot Studio Test Runner", "🏠"),
-            "settings" => ("Settings", "Configure all system settings and endpoints", "⚙️"),
-            "dashboard" => ("Dashboard", "View test execution metrics and statistics", "📊"),
-            "test-suites" => ("Test Suites", "Create and manage your test suites", "✅"),
-            "documents" => ("Documents", "Upload and manage documents for testing", "📄"),
-            _ => ("Welcome", "Copilot Studio Test Runner", "🏠")
-        };
-    }
-
-    private void ExitWizard()
-    {
-        showWizard = false;
-        Navigate("home");
-    }
-
-    private async Task CheckConfiguration()
-    {
         try
         {
-            if (File.Exists(CONFIG_FILE))
-            {
-                var json = await File.ReadAllTextAsync(CONFIG_FILE);
-                var config = JsonSerializer.Deserialize<ConfigData>(json);
-                
-                // Check if essential configuration is present
-                if (config?.DirectLine != null && 
-                    !string.IsNullOrWhiteSpace(config.DirectLine.BotId) &&
-                    !string.IsNullOrWhiteSpace(config.DirectLine.Secret) &&
-                    config.Judge != null &&
-                    !string.IsNullOrWhiteSpace(config.Judge.Endpoint) &&
-                    !string.IsNullOrWhiteSpace(config.Judge.Key))
-                {
-                    configReady = true;
-                }
-            }
+            totalSuites = await dbContext.TestSuites.CountAsync();
+            totalDocuments = await dbContext.Documents.CountAsync();
+            totalTestCases = await dbContext.TestCases.CountAsync();
+            totalRuns = await dbContext.Runs.CountAsync();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error checking configuration: {ex.Message}");
+            Console.WriteLine($"Error loading stats: {ex.Message}");
         }
     }
 
-    private async Task HandleConfigUpdate()
+    private async Task NavigateTo(string path)
     {
-        await CheckConfiguration();
-        StateHasChanged();
+        if (navigationManager != null)
+        {
+            navigationManager.NavigateTo(path);
+            await Task.CompletedTask;
+        }
     }
 
-    private class ConfigData
+    private async Task GoTestSuites()
     {
-        public DirectLineConfig? DirectLine { get; set; }
-        public JudgeConfig? Judge { get; set; }
+        await NavigateTo("/test-suites");
     }
 
-    private class DirectLineConfig
+    private async Task GoDocuments()
     {
-        public string BotId { get; set; } = "";
-        public string Secret { get; set; } = "";
+        await NavigateTo("/documents");
     }
 
-    private class JudgeConfig
+    private async Task GoDashboard()
     {
-        public string Endpoint { get; set; } = "";
-        public string Key { get; set; } = "";
+        await NavigateTo("/dashboard");
+    }
+
+    private async Task GoWizard()
+    {
+        await NavigateTo("/wizard");
     }
 }
 

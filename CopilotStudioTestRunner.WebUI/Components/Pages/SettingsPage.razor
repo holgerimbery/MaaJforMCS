@@ -11,7 +11,7 @@
 <div style="max-width: 1000px;">
     @if (!string.IsNullOrEmpty(successMsg))
     {
-        <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+        <div class="alert alert-success alert-dismissible fade show slide-in-left" role="alert" style="margin-bottom: 20px;">
             <i class="bi bi-check-circle"></i> @successMsg
             <button type="button" class="btn-close" @onclick="@((e) => { successMsg = null; })"></button>
         </div>
@@ -19,7 +19,7 @@
 
     @if (!string.IsNullOrEmpty(errorMsg))
     {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
+        <div class="alert alert-danger alert-dismissible fade show slide-in-left" role="alert" style="margin-bottom: 20px;">
             <i class="bi bi-exclamation-circle"></i> @errorMsg
             <button type="button" class="btn-close" @onclick="@((e) => { errorMsg = null; })"></button>
         </div>
@@ -39,6 +39,9 @@
             </button>
             <button class="tab-btn @(tab == 3 ? "active" : "")" @onclick="() => { tab = 3; ClearMessages(); }">
                 <i class="bi bi-hdd-rack"></i> Storage
+            </button>
+            <button class="tab-btn @(tab == 4 ? "active" : "")" @onclick="() => { tab = 4; ClearMessages(); }">
+                <i class="bi bi-lightbulb-fill"></i> AI Question Gen
             </button>
         </div>
     </div>
@@ -240,34 +243,73 @@
             </div>
         </form>
     </div>
+
+    <!-- Tab 4: AI Question Generation Configuration -->
+    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 4 ? "block" : "none");">
+        <h5 style="margin-bottom: 20px; color: #0d47a1;"><i class="bi bi-lightbulb-fill"></i> AI Question Generation (Azure OpenAI)</h5>
+        <p style="color: #666; margin-bottom: 20px;">Configure Azure OpenAI endpoint for AI-powered test question generation</p>
+        
+        <form @onsubmit="SaveQuestionGeneration">
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">Endpoint URL</label>
+                <input type="url" class="form-control" @bind="qgenEndpoint" placeholder="https://resource.openai.azure.com/" style="border-radius: 4px;" />
+                <small class="form-text text-muted">Your Azure AI Foundry or OpenAI endpoint</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">API Key</label>
+                <input type="password" class="form-control" @bind="qgenKey" placeholder="Enter your API key" style="border-radius: 4px;" />
+                <small class="form-text text-muted">Your Azure OpenAI API key (keep this secure)</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 500;">Model Name</label>
+                <input type="text" class="form-control" @bind="qgenModel" placeholder="gpt-4o-mini" style="border-radius: 4px;" />
+                <small class="form-text text-muted">The deployment name or model ID (e.g., gpt-4-turbo, gpt-4o-mini - mini recommended for cost)</small>
+            </div>
+
+            <div class="alert alert-info" style="border-left: 4px solid #0066cc; margin-bottom: 20px;">
+                <i class="bi bi-info-circle"></i> <strong>Tip:</strong> You can use the same Azure OpenAI endpoint as your Judge settings, or configure a separate instance.
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 25px;">
+                <button type="submit" class="btn btn-primary" style="border-radius: 4px;">
+                    <i class="bi bi-save"></i> Save Configuration
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="CopyFromJudge" style="border-radius: 4px;">
+                    <i class="bi bi-clipboard"></i> Copy from Judge Settings
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="TestQuestionGeneration" style="border-radius: 4px;">
+                    <i class="bi bi-lightning-charge"></i> Test Connection
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <style>
 .tab-btn {
     background: transparent;
     border: none;
-    color: #666;
-    padding: 12px 20px;
-    cursor: pointer;
-    font-weight: 500;
-    border-bottom: 3px solid transparent;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
+            color: var(--text-secondary);
+            padding: 12px 16px;
+            cursor: pointer;
+            font-weight: 500;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
 
-.tab-btn:hover {
-    color: #0d47a1;
-    background-color: #f5f5f5;
-}
+        .tab-btn:hover {
+            color: var(--primary);
+            background-color: rgba(0, 102, 204, 0.05);
+        }
 
-.tab-btn.active {
-    color: #0d47a1;
-    border-bottom-color: #0d47a1;
-}
-
-.form-label {
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
     color: #333;
     margin-bottom: 8px;
 }
@@ -321,6 +363,11 @@
     private double judgeTopP = 0.9;
     private double judgePassThreshold = 0.7;
 
+    // Question Generation
+    private string qgenEndpoint = "";
+    private string qgenKey = "";
+    private string qgenModel = "gpt-4o-mini";
+
     // Execution
     private int execMaxConcurrency = 5;
     private int execRateLimit = 50;
@@ -362,6 +409,10 @@
                     judgeTopP = config.Judge?.TopP ?? 0.9;
                     judgePassThreshold = config.Judge?.PassThreshold ?? 0.7;
 
+                    qgenEndpoint = config.QuestionGeneration?.Endpoint ?? "";
+                    qgenKey = config.QuestionGeneration?.Key ?? "";
+                    qgenModel = config.QuestionGeneration?.Model ?? "gpt-4o-mini";
+
                     execMaxConcurrency = config.Execution?.MaxConcurrency ?? 5;
                     execRateLimit = config.Execution?.RateLimit ?? 50;
                     execRetries = config.Execution?.Retries ?? 2;
@@ -398,6 +449,7 @@
                     UseWebChannelSecret = dlUseWebChannelSecret
                 },
                 Judge = new JudgeConfig { Endpoint = judgeEndpoint, Key = judgeKey, Model = judgeModel, Temperature = judgeTemp, TopP = judgeTopP, PassThreshold = judgePassThreshold },
+                QuestionGeneration = new QuestionGenerationConfig { Endpoint = qgenEndpoint, Key = qgenKey, Model = qgenModel },
                 Execution = new ExecutionConfig { MaxConcurrency = execMaxConcurrency, RateLimit = execRateLimit, Retries = execRetries, Backoff = execBackoff },
                 Storage = new StorageConfig { Sqlite = storageSqlite, Index = storageIndex, Upload = storageUpload }
             };
@@ -451,6 +503,107 @@
         successMsg = "✓ Storage settings saved successfully";
         await ConfigUpdated.InvokeAsync();
         ClearMessages(3000);
+    }
+
+    private async Task SaveQuestionGeneration()
+    {
+        if (string.IsNullOrWhiteSpace(qgenEndpoint) || string.IsNullOrWhiteSpace(qgenKey))
+        {
+            errorMsg = "Endpoint and API Key are required";
+            return;
+        }
+        await SaveConfiguration();
+        successMsg = "✓ Question Generation settings saved successfully";
+        await ConfigUpdated.InvokeAsync();
+        ClearMessages(3000);
+    }
+
+    private void CopyFromJudge()
+    {
+        if (string.IsNullOrWhiteSpace(judgeEndpoint) || string.IsNullOrWhiteSpace(judgeKey))
+        {
+            errorMsg = "AI Judge settings are not configured. Please configure them first.";
+            return;
+        }
+        qgenEndpoint = judgeEndpoint;
+        qgenKey = judgeKey;
+        qgenModel = judgeModel;
+        successMsg = "✓ Settings copied from AI Judge";
+        ClearMessages(3000);
+    }
+
+    private async Task TestQuestionGeneration()
+    {
+        if (string.IsNullOrWhiteSpace(qgenEndpoint) || string.IsNullOrWhiteSpace(qgenKey) || string.IsNullOrWhiteSpace(qgenModel))
+        {
+            errorMsg = "Please enter Endpoint, API Key, and Model name first";
+            return;
+        }
+        
+        try
+        {
+            var logger = Log.ForContext<SettingsPage>();
+            logger.Information("TestQuestionGen: Starting test. Endpoint: {Endpoint}, Model: {Model}", qgenEndpoint, qgenModel);
+            
+            // Create a simple test message (simulating the AI call without actual documents)
+            using var client = new System.Net.Http.HttpClient();
+            client.DefaultRequestHeaders.Add("api-key", qgenKey);
+
+            // Prepare test request
+            var requestBody = new
+            {
+                messages = new object[]
+                {
+                    new { role = "system", content = "You are a helpful AI for generating clear, concise test questions." },
+                    new { role = "user", content = "Generate 2 short test questions for testing connectivity." }
+                },
+                max_tokens = 500,
+                temperature = 0.7,
+                top_p = 0.9
+            };
+
+            var endpoint = qgenEndpoint.TrimEnd('/') + "/openai/deployments/" + qgenModel + "/chat/completions?api-version=2024-08-01-preview";
+            var jsonContent = new System.Net.Http.StringContent(
+                System.Text.Json.JsonSerializer.Serialize(requestBody),
+                System.Text.Encoding.UTF8,
+                "application/json"
+            );
+
+            logger.Information("TestQuestionGen: Sending test request to {Endpoint}", endpoint);
+            var response = await client.PostAsync(endpoint, jsonContent);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                throw new Exception($"HTTP {(int)response.StatusCode}: {errorContent}");
+            }
+
+            successMsg = $"✓ AI Question Generation connection successful!";
+            logger.Information("TestQuestionGen: Test passed");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "TestQuestionGen failed");
+            
+            if (ex.Message.Contains("401") || ex.Message.Contains("Unauthorized"))
+            {
+                errorMsg = "✗ Test failed (401): Invalid API key. Verify your Azure OpenAI API key is correct.";
+            }
+            else if (ex.Message.Contains("404") || ex.Message.Contains("Not Found"))
+            {
+                errorMsg = "✗ Test failed (404): Endpoint or model not found. Verify the endpoint URL and model name.";
+            }
+            else if (ex.Message.Contains("429") || ex.Message.Contains("Too Many Requests"))
+            {
+                errorMsg = "✗ Test failed: Rate limit exceeded. Please try again in a few moments.";
+            }
+            else
+            {
+                errorMsg = $"✗ Test failed: {ex.Message}";
+            }
+        }
+        
+        ClearMessages(5000);
     }
 
     private async Task TestDirectLine()
@@ -678,18 +831,25 @@
                 StateHasChanged();
             });
         }
+        else
+        {
+            successMsg = "";
+            errorMsg = "";
+        }
     }
 
     private class ConfigData
     {
         public DirectLineConfig? DirectLine { get; set; }
         public JudgeConfig? Judge { get; set; }
+        public QuestionGenerationConfig? QuestionGeneration { get; set; }
         public ExecutionConfig? Execution { get; set; }
         public StorageConfig? Storage { get; set; }
     }
 
     private class DirectLineConfig { public string BotId { get; set; } = ""; public string Secret { get; set; } = ""; public int Timeout { get; set; } = 30; public bool UseWebSocket { get; set; } = true; public bool UseWebChannelSecret { get; set; } = false; }
     private class JudgeConfig { public string Endpoint { get; set; } = ""; public string Key { get; set; } = ""; public string Model { get; set; } = ""; public double Temperature { get; set; } = 0.2; public double TopP { get; set; } = 0.9; public double PassThreshold { get; set; } = 0.7; }
+    private class QuestionGenerationConfig { public string Endpoint { get; set; } = ""; public string Key { get; set; } = ""; public string Model { get; set; } = ""; }
     private class ExecutionConfig { public int MaxConcurrency { get; set; } = 5; public int RateLimit { get; set; } = 50; public int Retries { get; set; } = 2; public int Backoff { get; set; } = 4; }
     private class StorageConfig { public string Sqlite { get; set; } = ""; public string Index { get; set; } = ""; public string Upload { get; set; } = ""; }
 }
