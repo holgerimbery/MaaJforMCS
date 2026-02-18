@@ -13,4 +13,5 @@ public class Document
     // Relationships
     public ICollection<Chunk> Chunks { get; set; } = [];
     public ICollection<TestCase> GeneratedTestCases { get; set; } = [];
+    public ICollection<TestCaseDocument> TestCaseDocuments { get; set; } = [];
 }

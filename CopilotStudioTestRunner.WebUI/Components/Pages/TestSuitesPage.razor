@@ -16,10 +16,11 @@
 @inject ITestExecutionService ExecutionService
 @inject IJudgeService JudgeService
 @inject IJSRuntime JS
+@inject IAgentConfigurationService AgentConfigService
 
 <div style="max-width: 1200px;">
     <div style="display: flex; gap: 12px; margin-bottom: 24px;">
-        <button class="btn btn-primary" @onclick="() => showNewSuiteForm = !showNewSuiteForm">
+        <button class="btn btn-primary" @onclick="OnShowNewSuiteForm">
             <i class="bi bi-plus-circle"></i> Create New Suite
         </button>
         <button class="btn btn-outline-secondary" @onclick="Refresh">
@@ -47,6 +48,68 @@
     {
         <div class="alert alert-info slide-in-left" role="alert">
             <i class="bi bi-hourglass-split"></i> @runStatusMsg
+        </div>
+    }
+
+    @if (showAgentSelectionModal)
+    {
+        <div class="modal-backdrop" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;" @onclick="() => showAgentSelectionModal = false">
+            <div class="modal-content" style="background: #ffffff; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); max-width: 500px; width: 100%; position: relative;" @onclick:stopPropagation="true">
+                <!-- Modal Header -->
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px; border-bottom: 1px solid #e8eaed; border-radius: 12px 12px 0 0;">
+                    <h3 style="margin: 0; color: #1f1f23;">
+                        <i class="bi bi-robot" style="color: #0066cc; margin-right: 8px;"></i>Select Agent
+                    </h3>
+                    <button type="button" class="btn-close" @onclick="() => showAgentSelectionModal = false" style="margin: 0;"></button>
+                </div>
+
+                <!-- Modal Body -->
+                <div style="padding: 24px;">
+                    <p style="color: #5f5f5f; margin-bottom: 20px;">Select which test agent to use for running this suite:</p>
+                    
+                    @if (availableAgents == null || availableAgents.Count == 0)
+                    {
+                        <div class="alert alert-info" style="margin-bottom: 20px;">
+                            <i class="bi bi-info-circle"></i> No agents available. <a href="/agents" style="color: #0066cc; font-weight: 500;">Create an agent first</a>.
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto;">
+                            @foreach (var agent in availableAgents)
+                            {
+                                <div style="display: flex; align-items: center; padding: 12px; border: 1px solid #e8eaed; border-radius: 8px; cursor: pointer; transition: all 0.2s; border-color: @(selectedAgentId == agent.Id ? "#0066cc" : "#e8eaed"); background-color: @(selectedAgentId == agent.Id ? "#f0f6ff" : "#ffffff");" 
+                                     class="@(selectedAgentId == agent.Id ? "agent-selected" : "")"
+                                     @onclick="() => selectedAgentId = agent.Id">
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 500; color: #1f1f23; margin-bottom: 4px;">@agent.Name</div>
+                                        <small style="color: #5f5f5f; display: block;">
+                                            <i class="bi bi-gear" style="margin-right: 4px;"></i>
+                                            @(agent.Environment ?? "production")
+                                        </small>
+                                    </div>
+                                    <div style="flex-shrink: 0; margin-left: 12px;">
+                                        @if (selectedAgentId == agent.Id)
+                                        {
+                                            <i class="bi bi-check2-circle" style="color: #0066cc; font-size: 20px;"></i>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Modal Footer -->
+                <div style="display: flex; justify-content: flex-end; gap: 12px; padding: 20px 24px; border-top: 1px solid #e8eaed; background-color: #f5f6f8; border-radius: 0 0 12px 12px;">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => showAgentSelectionModal = false">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="ConfirmAgentSelection" disabled="@(selectedAgentId == null || availableAgents == null || availableAgents.Count == 0)">
+                        <i class="bi bi-play-circle"></i> Run Suite
+                    </button>
+                </div>
+            </div>
         </div>
     }
 
@@ -258,26 +321,108 @@
     {
         <div style="background: #ffffff; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px; border: 1px solid #e8eaed; border-left: 4px solid #0066cc;">
             <h4 style="margin-bottom: 20px; color: #0066cc;"><i class="bi bi-plus-circle" style="margin-right: 8px;"></i>Create New Test Suite</h4>
-            <form @onsubmit="CreateNewSuite">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-                    <div>
-                        <label class="form-label">Suite Name</label>
-                        <input type="text" class="form-control" @bind="newSuiteName" placeholder="E.g., Greeting Test Suite" required />
+            
+            <div style="margin-bottom: 20px;">
+                <label class="form-label" style="font-weight: 500;">Suite Name <span style="color: red;">*</span></label>
+                <input type="text" class="form-control" @bind="newSuiteName" placeholder="E.g., Greeting Test Suite" />
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label" style="font-weight: 500;">Description</label>
+                <textarea class="form-control" @bind="newSuiteDescription" placeholder="Describe what this test suite tests" rows="2"></textarea>
+            </div>
+
+            <hr style="margin: 20px 0;" />
+
+            <div class="mb-4">
+                <h6 style="color: #0066cc; margin-bottom: 15px;"><i class="bi bi-file-earmark"></i> Related Documents</h6>
+                <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">Select documents to link with test cases (optional)</p>
+                
+                @if (availableDocuments == null || availableDocuments.Count == 0)
+                {
+                    <div class="alert alert-info" style="margin-bottom: 15px;">
+                        <i class="bi bi-info-circle"></i> No documents available yet. <a href="/wizard" style="color: #0066cc;">Go to Setup Wizard</a> to upload documents.
                     </div>
+                }
+                else
+                {
+                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; max-height: 200px; overflow-y: auto; margin-bottom: 10px;">
+                        @foreach (var doc in availableDocuments)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="doc_@doc.Id" 
+                                       checked="@newSuiteSelectedDocuments.Contains(doc.Id)" 
+                                       @onchange="e => OnDocumentSelectionChanged(doc.Id, e)" />
+                                <label class="form-check-label" for="doc_@doc.Id">
+                                    <strong>@doc.Name</strong> <span style="color: #999; font-size: 0.9em;">(@doc.Chunks.Count chunks)</span>
+                                </label>
+                            </div>
+                        }
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="SelectAllNewSuiteDocuments">
+                            <i class="bi bi-check-all"></i> Select All
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ClearNewSuiteDocumentSelection">
+                            <i class="bi bi-x-circle"></i> Clear
+                        </button>
+                    </div>
+                }
+            </div>
+
+            <hr style="margin: 20px 0;" />
+
+            <div class="mb-4" style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #0066cc;">
+                <h6 style="color: #0066cc; margin-bottom: 15px;"><i class="bi bi-robot"></i> Agent Selection</h6>
+                
+                @if (createSuiteAgents == null || createSuiteAgents.Count == 0)
+                {
+                    <div class="alert alert-warning" style="margin-bottom: 15px;">
+                        <i class="bi bi-exclamation-triangle"></i> No agents available. <a href="/agents" style="color: #0066cc;">Create an agent first</a>.
+                    </div>
+                }
+                else
+                {
+                    <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">Select an agent to generate and run questions with this suite</p>
+                    <select class="form-select" @bind="newSuiteSelectedAgentId">
+                        <option value="">-- Select an agent --</option>
+                        @foreach (var agent in createSuiteAgents)
+                        {
+                            <option value="@agent.Id">@agent.Name (@agent.Environment)</option>
+                        }
+                    </select>
+                }
+            </div>
+
+            <div class="mb-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="generateQuestionsCheck" @bind="newSuiteGenerateQuestions" disabled="@(string.IsNullOrEmpty(newSuiteSelectedAgentId))" />
+                    <label class="form-check-label" for="generateQuestionsCheck">
+                        Generate test questions from selected documents
+                    </label>
+                    <small class="form-text text-muted d-block mt-1">
+                        Requires documents to be selected and an agent to be configured
+                    </small>
                 </div>
-                <div class="mb-4">
-                    <label class="form-label">Description</label>
-                    <textarea class="form-control" @bind="newSuiteDescription" placeholder="Describe what this test suite tests" rows="3"></textarea>
+            </div>
+
+            @if (newSuiteGenerateQuestions && newSuiteSelectedDocuments.Count > 0)
+            {
+                <div class="mb-4" style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; border-left: 4px solid #2196f3;">
+                    <label class="form-label" style="font-weight: 500;">Number of Questions to Generate</label>
+                    <input type="number" class="form-control" @bind="newSuiteQuestionCount" min="5" max="50" />
+                    <small class="form-text text-muted">Questions will be auto-generated from your selected documents</small>
                 </div>
-                <div style="display: flex; gap: 12px;">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-plus"></i> Create Suite
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" @onclick="() => showNewSuiteForm = false">
-                        Cancel
-                    </button>
-                </div>
-            </form>
+            }
+
+            <div style="display: flex; gap: 12px;">
+                <button type="button" class="btn btn-primary" @onclick="CreateNewSuiteWithOptions" disabled="@string.IsNullOrWhiteSpace(newSuiteName)">
+                    <i class="bi bi-plus"></i> Create Suite
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="() => { showNewSuiteForm = false; ResetNewSuiteForm(); }">
+                    Cancel
+                </button>
+            </div>
         </div>
     }
 
@@ -362,6 +507,14 @@
     private bool isRunningSuite = false;
     private Guid? runningSuiteId;
 
+    // New Suite Form
+    private List<Document>? availableDocuments;
+    private HashSet<Guid> newSuiteSelectedDocuments = new();
+    private List<Agent>? createSuiteAgents;
+    private string? newSuiteSelectedAgentId;
+    private bool newSuiteGenerateQuestions = false;
+    private int newSuiteQuestionCount = 10;
+
     private bool showEditModal = false;
     private TestSuite? editingSuite;
     private string editingSuiteName = "";
@@ -384,10 +537,54 @@
     private bool hasFileSelected = false;
     private string importMsg = "";
     private const string CONFIG_FILE = "./data/settings.json";
+    private bool showAgentSelectionModal = false;
+    private List<Agent>? availableAgents;
+    private Guid? selectedAgentId;
+    private Guid? pendingSuiteIdForAgent;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadTestSuites();
+    }
+
+    private async Task LoadNewSuiteFormData()
+    {
+        await LoadDocumentsForNewSuite();
+        await LoadAgentsForNewSuite();
+    }
+
+    private async Task LoadDocumentsForNewSuite()
+    {
+        try
+        {
+            if (DbContext == null) return;
+            
+            availableDocuments = await DbContext.Documents
+                .Include(d => d.Chunks)
+                .OrderByDescending(d => d.UploadedAt)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading documents: {ex.Message}";
+        }
+    }
+
+    private async Task LoadAgentsForNewSuite()
+    {
+        try
+        {
+            if (DbContext == null) return;
+            
+            createSuiteAgents = await DbContext.Agents
+                .Where(a => a.IsActive)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading agents: {ex.Message}";
+        }
     }
 
     private async Task LoadTestSuites()
@@ -407,6 +604,145 @@
         {
             errorMsg = $"Error loading test suites: {ex.Message}";
             isLoading = false;
+        }
+    }
+
+    private void OnShowNewSuiteForm()
+    {
+        showNewSuiteForm = true;
+        ResetNewSuiteForm();
+        _ = LoadNewSuiteFormData();
+    }
+
+    private void ResetNewSuiteForm()
+    {
+        newSuiteName = "";
+        newSuiteDescription = "";
+        newSuiteSelectedDocuments.Clear();
+        newSuiteSelectedAgentId = null;
+        newSuiteGenerateQuestions = false;
+        newSuiteQuestionCount = 10;
+        errorMsg = "";
+    }
+
+    private void OnDocumentSelectionChanged(Guid documentId, ChangeEventArgs e)
+    {
+        var isSelected = e.Value is bool value
+            ? value
+            : bool.TryParse(e.Value?.ToString(), out var parsed) && parsed;
+
+        if (isSelected)
+        {
+            newSuiteSelectedDocuments.Add(documentId);
+        }
+        else
+        {
+            newSuiteSelectedDocuments.Remove(documentId);
+        }
+    }
+
+    private void SelectAllNewSuiteDocuments()
+    {
+        if (availableDocuments != null)
+        {
+            newSuiteSelectedDocuments.Clear();
+            foreach (var doc in availableDocuments)
+            {
+                newSuiteSelectedDocuments.Add(doc.Id);
+            }
+        }
+    }
+
+    private void ClearNewSuiteDocumentSelection()
+    {
+        newSuiteSelectedDocuments.Clear();
+    }
+
+    private async Task CreateNewSuiteWithOptions()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(newSuiteName))
+            {
+                errorMsg = "Suite name is required";
+                return;
+            }
+
+            if (DbContext == null) return;
+
+            var suite = new TestSuite
+            {
+                Id = Guid.NewGuid(),
+                Name = newSuiteName,
+                Description = newSuiteDescription ?? "",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                CreatedBy = "WebUI",
+                TestCases = new List<TestCase>()
+            };
+
+            DbContext.TestSuites.Add(suite);
+            await DbContext.SaveChangesAsync();
+
+            // Link documents if selected
+            if (newSuiteSelectedDocuments.Count > 0)
+            {
+                // Create a placeholder test case to link documents
+                var defaultTestCase = new TestCase
+                {
+                    Id = Guid.NewGuid(),
+                    SuiteId = suite.Id,
+                    Name = "Default",
+                    Description = "Default test case for document linking",
+                    UserInput = new string[] { "test" },
+                    AcceptanceCriteria = "Test case linked to selected documents",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                foreach (var documentId in newSuiteSelectedDocuments)
+                {
+                    defaultTestCase.TestCaseDocuments.Add(new TestCaseDocument
+                    {
+                        TestCaseId = defaultTestCase.Id,
+                        DocumentId = documentId,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+
+                DbContext.TestCases.Add(defaultTestCase);
+                await DbContext.SaveChangesAsync();
+            }
+
+            successMsg = $"Test suite '{newSuiteName}' created successfully";
+            
+            // If question generation is enabled, redirect to generate questions
+            if (newSuiteGenerateQuestions && newSuiteSelectedDocuments.Count > 0 && !string.IsNullOrEmpty(newSuiteSelectedAgentId))
+            {
+                // Store the suite ID to edit it with auto-generation
+                showNewSuiteForm = false;
+                ResetNewSuiteForm();
+                await LoadTestSuites();
+
+                // Show success and then auto-open edit modal
+                await Task.Delay(500);
+                var createdSuite = testSuites?.FirstOrDefault(s => s.Id == suite.Id);
+                if (createdSuite != null)
+                {
+                    await EditSuite(suite.Id);
+                }
+            }
+            else
+            {
+                showNewSuiteForm = false;
+                ResetNewSuiteForm();
+                await LoadTestSuites();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error creating test suite: {ex.Message}";
+            Console.WriteLine($"Error creating suite: {ex}");
         }
     }
 
@@ -452,6 +788,70 @@
     {
         try
         {
+            // Load available agents
+            await LoadAvailableAgents();
+            
+            if (availableAgents == null || availableAgents.Count == 0)
+            {
+                errorMsg = "No agents available. Please create an agent first in the Agents page.";
+                return;
+            }
+
+            // Show agent selection modal
+            pendingSuiteIdForAgent = suiteId;
+            selectedAgentId = availableAgents.FirstOrDefault()?.Id;
+            showAgentSelectionModal = true;
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading agents: {ex.Message}";
+        }
+    }
+
+    private async Task LoadAvailableAgents()
+    {
+        try
+        {
+            if (DbContext == null) return;
+            
+            availableAgents = await DbContext.Agents
+                .Where(a => a.IsActive)
+                .OrderBy(a => a.Name)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading agents: {ex.Message}";
+            availableAgents = new List<Agent>();
+        }
+    }
+
+    private async Task ConfirmAgentSelection()
+    {
+        try
+        {
+            if (!pendingSuiteIdForAgent.HasValue || !selectedAgentId.HasValue)
+            {
+                errorMsg = "Please select an agent";
+                return;
+            }
+
+            await ExecuteSuiteWithAgent(pendingSuiteIdForAgent.Value, selectedAgentId.Value);
+            showAgentSelectionModal = false;
+            pendingSuiteIdForAgent = null;
+            selectedAgentId = null;
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error running suite: {ex.Message}";
+            showAgentSelectionModal = false;
+        }
+    }
+
+    private async Task ExecuteSuiteWithAgent(Guid suiteId, Guid agentId)
+    {
+        try
+        {
             if (DbContext == null) return;
 
             var suite = await DbContext.TestSuites
@@ -465,44 +865,46 @@
                 return;
             }
 
-            var settings = await LoadRunSettings();
-            if (settings.DirectLine == null || settings.Judge == null)
+            var agent = await DbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId);
+            if (agent == null)
             {
-                errorMsg = "Missing configuration. Please complete the Setup Wizard configuration first.";
+                errorMsg = "Selected agent not found.";
                 return;
             }
 
             isRunningSuite = true;
             runningSuiteId = suiteId;
-            runStatusMsg = $"Running test suite '{suite.Name}'...";
+            runStatusMsg = $"Running test suite '{suite.Name}' with agent '{agent.Name}'...";
             successMsg = "";
             errorMsg = "";
             await InvokeAsync(StateHasChanged);
 
             var dlClient = new DirectLineClient(
-                settings.DirectLine.Secret,
-                settings.DirectLine.BotId,
-                settings.DirectLine.Timeout,
-                settings.DirectLine.UseWebChannelSecret);
+                agent.DirectLineSecret,
+                agent.DirectLineBotId,
+                agent.DirectLineReplyTimeoutSeconds,
+                agent.DirectLineUseWebChannelSecret);
 
             var judgeSettings = new JudgeSetting
             {
-                Endpoint = settings.Judge.Endpoint,
-                ApiKey = settings.Judge.Key,
-                Model = settings.Judge.Model,
-                Temperature = settings.Judge.Temperature,
-                TopP = settings.Judge.TopP,
-                MaxOutputTokens = 4000,
-                PassThreshold = settings.Judge.PassThreshold
+                Endpoint = agent.JudgeEndpoint,
+                ApiKey = agent.JudgeApiKey,
+                Model = agent.JudgeModel,
+                Temperature = agent.JudgeTemperature,
+                TopP = agent.JudgeTopP,
+                MaxOutputTokens = agent.JudgeMaxOutputTokens,
+                PassThreshold = agent.JudgePassThreshold
             };
 
             var dlSettings = new DirectLineSettings
             {
-                Secret = settings.DirectLine.Secret,
-                BotId = settings.DirectLine.BotId,
-                UseWebChannelSecret = settings.DirectLine.UseWebChannelSecret,
-                UseWebSocket = settings.DirectLine.UseWebSocket,
-                ReplyTimeoutSeconds = settings.DirectLine.Timeout
+                Secret = agent.DirectLineSecret,
+                BotId = agent.DirectLineBotId,
+                UseWebChannelSecret = agent.DirectLineUseWebChannelSecret,
+                UseWebSocket = agent.DirectLineUseWebSocket,
+                ReplyTimeoutSeconds = agent.DirectLineReplyTimeoutSeconds,
+                MaxRetries = agent.DirectLineMaxRetries,
+                BackoffSeconds = agent.DirectLineBackoffSeconds
             };
 
             var run = await ExecutionService.ExecuteTestSuiteAsync(
@@ -511,9 +913,11 @@
                 dlClient,
                 JudgeService,
                 judgeSettings,
-                dlSettings);
+                dlSettings,
+                2000,
+                agentId);
 
-            successMsg = $"Test suite '{suite.Name}' completed: {run.PassedCount} passed, {run.FailedCount} failed.";
+            successMsg = $"Test suite '{suite.Name}' completed with '{agent.Name}': {run.PassedCount} passed, {run.FailedCount} failed.";
         }
         catch (Exception ex)
         {

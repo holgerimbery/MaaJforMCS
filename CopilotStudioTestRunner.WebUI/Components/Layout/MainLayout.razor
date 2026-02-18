@@ -6,43 +6,68 @@
 
 <div style="display: flex; min-height: 100vh; background-color: #f5f6f8;">
     <!-- Vertical Icon Sidebar Navigation -->
-    <div style="width: 60px; background-color: #ffffff; position: fixed; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; align-items: center; box-shadow: 2px 0 8px rgba(0,0,0,0.05); z-index: 1000;">
+    <div style="width: @(isSidebarExpanded ? "220px" : "60px"); background-color: #ffffff; position: fixed; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; align-items: center; box-shadow: 2px 0 8px rgba(0,0,0,0.05); z-index: 1000; transition: width 0.3s ease;">
+        <!-- Toggle Button -->
+        <div style="width: 100%; padding: 12px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #e8eaed;">
+            <button @onclick="ToggleSidebar" style="background: none; border: none; cursor: pointer; padding: 4px; color: #5f5f5f; display: flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 44px; height: 44px; border-radius: 8px; transition: all 0.2s ease;" title="Toggle sidebar" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='transparent'">
+                <i class="bi @(isSidebarExpanded ? "bi-chevron-left" : "bi-chevron-right")" style="font-size: 20px;"></i>
+            </button>
+        </div>
+
         <!-- Logo -->
-        <div style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #e8eaed; cursor: pointer;" @onclick="GoHome">
+        <div style="width: 100%; padding: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-bottom: 1px solid #e8eaed;" @onclick="GoHome">
             <div style="font-size: 16px; color: #ffffff; font-weight: 900; text-align: center; background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 6px; letter-spacing: -1px;">
                 CS
             </div>
+            @if (isSidebarExpanded)
+            {
+                <span style="margin-left: 12px; font-size: 14px; font-weight: 600; color: #1f1f23; white-space: nowrap;">Menu</span>
+            }
         </div>
 
         <!-- Navigation Items -->
-        <div style="flex: 1; padding: 20px 0; display: flex; flex-direction: column; gap: 8px; align-items: center;">
-            <div class="nav-button @(currentPage == "home" ? "active" : "")" @onclick="GoHome" title="Home">
-                <i class="bi bi-house-door"></i>
+        <div style="flex: 1; padding: 20px 0; display: flex; flex-direction: column; gap: 8px; align-items: @(isSidebarExpanded ? "stretch" : "center"); padding-left: @(isSidebarExpanded ? "8px" : "0"); padding-right: @(isSidebarExpanded ? "8px" : "0");">
+            <div class="nav-button @(currentPage == "home" ? "active" : "")" @onclick="GoHome" title="Home" style="@(isSidebarExpanded ? "width: 100%; flex-direction: row; gap: 12px; justify-content: flex-start; padding-left: 12px;" : "")">
+                <i class="bi bi-house-door" style="flex-shrink: 0;"></i>
+                @if (isSidebarExpanded) { <span>Home</span> }
             </div>
-            <div class="nav-button @(currentPage == "test-suites" ? "active" : "")" @onclick="GoTestSuites" title="Test Suites">
-                <i class="bi bi-list-check"></i>
+            <div class="nav-button @(currentPage == "wizard" ? "active" : "")" @onclick="GoWizard" title="Setup Wizard" style="@(isSidebarExpanded ? "width: 100%; flex-direction: row; gap: 12px; justify-content: flex-start; padding-left: 12px;" : "")">
+                <i class="bi bi-magic" style="flex-shrink: 0;"></i>
+                @if (isSidebarExpanded) { <span>Wizard</span> }
             </div>
-            <div class="nav-button @(currentPage == "documents" ? "active" : "")" @onclick="GoDocuments" title="Documents">
-                <i class="bi bi-file-earmark"></i>
+            <div class="nav-button @(currentPage == "test-suites" ? "active" : "")" @onclick="GoTestSuites" title="Test Suites" style="@(isSidebarExpanded ? "width: 100%; flex-direction: row; gap: 12px; justify-content: flex-start; padding-left: 12px;" : "")">
+                <i class="bi bi-list-check" style="flex-shrink: 0;"></i>
+                @if (isSidebarExpanded) { <span>Test Suites</span> }
             </div>
-            <div class="nav-button @(currentPage == "dashboard" ? "active" : "")" @onclick="GoDashboard" title="Dashboard">
-                <i class="bi bi-graph-up"></i>
+            <div class="nav-button @(currentPage == "documents" ? "active" : "")" @onclick="GoDocuments" title="Documents" style="@(isSidebarExpanded ? "width: 100%; flex-direction: row; gap: 12px; justify-content: flex-start; padding-left: 12px;" : "")">
+                <i class="bi bi-file-earmark" style="flex-shrink: 0;"></i>
+                @if (isSidebarExpanded) { <span>Documents</span> }
             </div>
-            <div class="nav-button @(currentPage == "wizard" ? "active" : "")" @onclick="GoWizard" title="Setup Wizard">
-                <i class="bi bi-magic"></i>
+            <div class="nav-button @(currentPage == "agents" ? "active" : "")" @onclick="GoAgents" title="Agents" style="@(isSidebarExpanded ? "width: 100%; flex-direction: row; gap: 12px; justify-content: flex-start; padding-left: 12px;" : "")">
+                <i class="bi bi-robot" style="flex-shrink: 0;"></i>
+                @if (isSidebarExpanded) { <span>Agents</span> }
+            </div>
+            <div class="nav-button @(currentPage == "dashboard" ? "active" : "")" @onclick="GoDashboard" title="Dashboard" style="@(isSidebarExpanded ? "width: 100%; flex-direction: row; gap: 12px; justify-content: flex-start; padding-left: 12px;" : "")">
+                <i class="bi bi-graph-up" style="flex-shrink: 0;"></i>
+                @if (isSidebarExpanded) { <span>Dashboard</span> }
             </div>
         </div>
 
-        <!-- Settings -->
-        <div style="padding: 20px 0; border-top: 1px solid #e8eaed; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px;">
-            <div class="nav-button @(currentPage == "settings" ? "active" : "")" @onclick="GoSettings" title="Settings">
-                <i class="bi bi-gear"></i>
+        <!-- Bottom Navigation -->
+        <div style="padding: 20px 0; border-top: 1px solid #e8eaed; width: 100%; display: flex; flex-direction: column; align-items: @(isSidebarExpanded ? "stretch" : "center"); gap: 8px; padding-left: @(isSidebarExpanded ? "8px" : "0"); padding-right: @(isSidebarExpanded ? "8px" : "0");">
+            <div class="nav-button @(currentPage == "help" ? "active" : "")" @onclick="GoHelp" title="Help" style="@(isSidebarExpanded ? "width: 100%; flex-direction: row; gap: 12px; justify-content: flex-start; padding-left: 12px;" : "")">
+                <i class="bi bi-question-circle" style="flex-shrink: 0;"></i>
+                @if (isSidebarExpanded) { <span>Help</span> }
+            </div>
+            <div class="nav-button @(currentPage == "settings" ? "active" : "")" @onclick="GoSettings" title="Settings" style="@(isSidebarExpanded ? "width: 100%; flex-direction: row; gap: 12px; justify-content: flex-start; padding-left: 12px;" : "")">
+                <i class="bi bi-gear" style="flex-shrink: 0;"></i>
+                @if (isSidebarExpanded) { <span>Settings</span> }
             </div>
         </div>
     </div>
 
     <!-- Main Content Area -->
-    <div style="margin-left: 60px; width: calc(100% - 60px); display: flex; flex-direction: column;">
+    <div style="margin-left: @(isSidebarExpanded ? "220px" : "60px"); width: calc(100% - @(isSidebarExpanded ? "220px" : "60px")); display: flex; flex-direction: column; transition: margin-left 0.3s ease, width 0.3s ease;">
         <!-- Header -->
         <div style="background-color: #ffffff; padding: 24px 32px; border-bottom: 1px solid #e8eaed; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <div style="max-width: 1400px;">
@@ -90,14 +115,20 @@
     border-color: #0066cc;
     box-shadow: inset 0 0 0 1px rgba(0, 102, 204, 0.3);
 }
+
+/* Expanded nav button styles */
+.nav-button span {
+    font-size: 13px;
+    font-weight: 500;
+    color: inherit;
+}
 </style>
 
 @code {
     private string currentPage = "home";
     private string pageTitle = "Welcome";
     private string pageDescription = "Copilot Studio Test Runner - AI Assistant Testing Platform";
-    private bool isConfigured = false;
-    private const string CONFIG_FILE = "./data/settings.json";
+    private bool isConfigured = false;    private bool isSidebarExpanded = false;    private const string CONFIG_FILE = "./data/settings.json";
 
     protected override void OnInitialized()
     {
@@ -150,6 +181,8 @@
             "dashboard" => "dashboard",
             "test-suites" => "test-suites",
             "documents" => "documents",
+            "agents" => "agents",
+            "help" => "help",
             _ => "home"
         };
 
@@ -161,17 +194,21 @@
             "dashboard" => "Dashboard",
             "test-suites" => "Test Suites",
             "documents" => "Documents",
+            "agents" => "Agents",
+            "help" => "Help & Resources",
             _ => "Welcome"
         };
         
         pageDescription = currentPage switch
         {
-            "home" => "Get started with Copilot Studio Test Runner",
+            "home" => "Copilot Studio Test Runner - Ship your agents with confidence",
             "wizard" => "Guided setup and testing workflow",
             "settings" => "Configure all system settings and endpoints",
             "dashboard" => "View test execution metrics and statistics",
             "test-suites" => "Create and manage test suites",
             "documents" => "Upload and manage documents for testing",
+            "agents" => "Manage test agents and their configurations",
+            "help" => "Find documentation, source code, and learn more",
             _ => ""
         };
         
@@ -189,6 +226,8 @@
             "dashboard" => "/dashboard",
             "test-suites" => "/test-suites",
             "documents" => "/documents",
+            "agents" => "/agents",
+            "help" => "/help",
             _ => "/home"
         };
         
@@ -198,9 +237,16 @@
     private Task GoHome() => Task.Run(() => SelectPage("home"));
     private Task GoTestSuites() => Task.Run(() => SelectPage("test-suites"));
     private Task GoDocuments() => Task.Run(() => SelectPage("documents"));
+    private Task GoAgents() => Task.Run(() => SelectPage("agents"));
     private Task GoDashboard() => Task.Run(() => SelectPage("dashboard"));
     private Task GoWizard() => Task.Run(() => SelectPage("wizard"));
+    private Task GoHelp() => Task.Run(() => SelectPage("help"));
     private Task GoSettings() => Task.Run(() => SelectPage("settings"));
+
+    private void ToggleSidebar()
+    {
+        isSidebarExpanded = !isSidebarExpanded;
+    }
 
     public void Dispose()
     {

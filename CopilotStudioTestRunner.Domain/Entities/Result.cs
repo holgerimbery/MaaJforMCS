@@ -5,6 +5,7 @@ public class Result
     public Guid Id { get; set; }
     public Guid RunId { get; set; }
     public Guid TestCaseId { get; set; }
+    public Guid? AgentId { get; set; } // Nullable for backward compatibility during migration
     public string Verdict { get; set; } = "unknown"; // 'pass', 'fail', 'error', 'skipped'
     
     // Scoring (0.0 to 1.0)
@@ -31,5 +32,6 @@ public class Result
     // Navigation
     public Run? Run { get; set; }
     public TestCase? TestCase { get; set; }
+    public Agent? Agent { get; set; }
     public ICollection<TranscriptMessage> TranscriptMessages { get; set; } = [];
 }

@@ -21,6 +21,7 @@ public interface ITestExecutionService
         JudgeSetting judgeSettings,
         DirectLineSettings directLineSettings,
         int delayBetweenTestsMs = 2000,
+        Guid? agentId = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -36,6 +37,7 @@ public class TestExecutionService : ITestExecutionService
         JudgeSetting judgeSettings,
         DirectLineSettings directLineSettings,
         int delayBetweenTestsMs = 2000,
+        Guid? agentId = null,
         CancellationToken cancellationToken = default)
     {
         var suite = await dbContext.TestSuites.FindAsync([suiteId], cancellationToken: cancellationToken);
@@ -48,6 +50,7 @@ public class TestExecutionService : ITestExecutionService
         {
             Id = Guid.NewGuid(),
             SuiteId = suiteId,
+            AgentId = agentId,
             StartedAt = DateTime.UtcNow,
             Status = "running"
         };

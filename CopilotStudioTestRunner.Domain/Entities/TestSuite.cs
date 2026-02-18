@@ -19,4 +19,5 @@ public class TestSuite
     // Relationships
     public ICollection<TestCase> TestCases { get; set; } = [];
     public ICollection<Run> Runs { get; set; } = [];
+    public ICollection<TestSuiteAgent> TestSuiteAgents { get; set; } = [];
 }

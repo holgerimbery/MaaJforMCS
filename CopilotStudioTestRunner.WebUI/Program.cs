@@ -58,6 +58,8 @@ builder.Services.AddScoped<DirectLineClient>(sp =>
 builder.Services.AddScoped<IJudgeService, AzureAIFoundryJudgeService>();
 builder.Services.AddScoped<IQuestionGenerationService, AzureOpenAIQuestionGenerationService>();
 builder.Services.AddScoped<ITestExecutionService, TestExecutionService>();
+builder.Services.AddScoped<IAgentConfigurationService, AgentConfigurationService>();
+builder.Services.AddScoped<IMultiAgentExecutionCoordinator, MultiAgentExecutionCoordinator>();
 builder.Services.AddScoped<IDocumentIngestor, DocumentIngestor>();
 builder.Services.AddScoped<IDocumentChunker, DocumentChunker>();
 
@@ -69,12 +71,16 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-// Ensure database is created
+// Ensure database is migrated and seeded
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<TestRunnerDbContext>();
-    dbContext.Database.EnsureCreated();
+    dbContext.Database.Migrate();
     Log.Information("Database initialized");
+    
+    // Seed test data
+    var seeder = new TestDataSeeder(dbContext);
+    await seeder.SeedSampleDataAsync();
 }
 
 if (!app.Environment.IsDevelopment())
@@ -181,27 +187,66 @@ async Task<IResult> GetRun(Guid id, TestRunnerDbContext db)
     return run == null ? Results.NotFound() : Results.Ok(run);
 }
 
-async Task<IResult> StartRun(StartRunRequest request, TestRunnerDbContext db, ITestExecutionService executionService, IJudgeService judgeService, TestRunnerConfiguration config)
+async Task<IResult> StartRun(StartRunRequest request, TestRunnerDbContext db, ITestExecutionService executionService, IJudgeService judgeService, IMultiAgentExecutionCoordinator coordinator, IAgentConfigurationService agentConfig, TestRunnerConfiguration config)
 {
-    var suite = await db.TestSuites.FindAsync(request.SuiteId);
-    if (suite == null) return Results.NotFound("Test suite not found");
+    var suite = await db.TestSuites
+        .Include(s => s.TestSuiteAgents)
+        .ThenInclude(tsa => tsa.Agent)
+        .FirstOrDefaultAsync(s => s.Id == request.SuiteId);
     
-    var judgeSettings = new JudgeSetting
+    if (suite == null) 
+        return Results.NotFound("Test suite not found");
+    
+    // Determine which agents to run against
+    List<Agent> agentsToRun = new();
+    
+    if (request.AgentIds != null && request.AgentIds.Any())
     {
-        Temperature = config.Judge.Temperature,
-        TopP = config.Judge.TopP,
-        MaxOutputTokens = config.Judge.MaxOutputTokens,
-        PassThreshold = 0.7
-    };
+        // Use specified agents
+        agentsToRun = await db.Agents
+            .Where(a => request.AgentIds.Contains(a.Id))
+            .ToListAsync();
+    }
+    else if (suite.TestSuiteAgents.Any())
+    {
+        // Use agents linked to suite
+        agentsToRun = suite.TestSuiteAgents.Select(tsa => tsa.Agent).ToList();
+    }
+    else
+    {
+        // Fall back to creating a run with global config (legacy behavior)
+        var judgeSettings = new JudgeSetting
+        {
+            Temperature = config.Judge.Temperature,
+            TopP = config.Judge.TopP,
+            MaxOutputTokens = config.Judge.MaxOutputTokens,
+            PassThreshold = 0.7,
+            Endpoint = config.Judge.Endpoint,
+            ApiKey = config.Judge.ApiKey,
+            Model = config.Judge.Model
+        };
+        
+        var dlClient = new DirectLineClient(
+            config.DirectLine.Secret,
+            config.DirectLine.BotId,
+            config.DirectLine.ReplyTimeoutSeconds,
+            config.DirectLine.UseWebChannelSecret);
+        
+        var run = await executionService.ExecuteTestSuiteAsync(
+            request.SuiteId, db, dlClient, judgeService, judgeSettings, config.DirectLine);
+        return Results.Created($"/api/runs/{run.Id}", run);
+    }
     
-    var dlClient = new DirectLineClient(
-        config.DirectLine.Secret,
-        config.DirectLine.BotId,
-        config.DirectLine.ReplyTimeoutSeconds,
-        config.DirectLine.UseWebChannelSecret);
+    // Execute against configured agents
+    var runs = await coordinator.ExecuteForMultipleAgentsAsync(
+        request.SuiteId,
+        agentsToRun,
+        db,
+        judgeService,
+        agentConfig,
+        delayBetweenTestsMs: 2000);
     
-    var run = await executionService.ExecuteTestSuiteAsync(request.SuiteId, db, dlClient, judgeService, judgeSettings, config.DirectLine);
-    return Results.Created($"/api/runs/{run.Id}", run);
+    return Results.Created($"/api/runs", new { runs = runs, count = runs.Count });
 }
 
 async Task<IResult> GetRunResults(Guid id, TestRunnerDbContext db)

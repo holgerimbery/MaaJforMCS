@@ -1,25 +1,60 @@
 # Copilot Studio Test Runner
 
-An enterprise-grade .NET application for automated testing of Microsoft Copilot Studio agents. Connect via Direct Line, evaluate responses using AI Foundry models, generate test cases from documents, and track performance with detailed reporting.
+An enterprise-grade **multi-agent aware** .NET application for automated testing of Microsoft Copilot Studio agents. Test multiple agents simultaneously across different environments, compare performance, and track quality metrics. Connect via Direct Line, evaluate responses using AI Foundry models, generate test cases from documents, and gain comprehensive insights with detailed reporting.
 
 
 ## Pictures
-![](./assets/home.jpg)
-![](./assets/dashboard.jpg)
-![](./assets/testrun.jpg)
+![home page](./assets/home.jpg)
+![wizard](./assets/wizard.jpg)
+![test suites](./assets/test-suites.jpg)
+![create test suite](./assets/create-test-suite.jpg)
+![upload documents - data sources](./assets/upload-documents.jpg)
+![create agent](./assets/agent-creation.jpg)
+![test run dashboard](./assets/dashboard.jpg)
+![test run result](./assets/testrun.jpg)
 
 
 
 ## Features
 
+- **Multi-Agent Testing**: Configure and test multiple Copilot Studio agents simultaneously
+  - Independent configuration per agent (Direct Line, Judge settings, thresholds)
+  - Cross-environment testing (dev, staging, production)
+  - Side-by-side performance comparison
+  - Agent-specific or global question generation settings
 - **Direct Line Integration**: Connect to Copilot Studio agents via WebSocket or polling
 - **Model-as-a-Judge Evaluation**: Use Azure AI Foundry LLM endpoints to score responses
 - **Document-driven Test Generation**: Auto-generate test cases from uploaded PDFs and text files
-- **Comprehensive Web UI**: Dashboard, configuration, transcript viewer, and reporting
-- **Setup Wizard**: Guided first-run setup that writes `appsettings.json`
+- **Comprehensive Web UI**: Dashboard, agent management, configuration, transcript viewer, and reporting
+- **Setup Wizard**: Guided first-run setup with agent and test suite creation
 - **CLI for CI/CD**: Integrate testing into deployment pipelines
 - **Local-First Architecture**: Runs entirely locally with external calls only to Direct Line and AI Foundry
-- **Rich Metrics**: Pass rates, latency analysis, trend tracking
+- **Rich Metrics**: Pass rates, latency analysis, trend tracking across agents
+
+## Multi-Agent Architecture
+
+The tool is designed from the ground up to support testing multiple Copilot Studio agents in parallel:
+
+### Agent Management
+- **Agent Registry**: Define multiple agents with unique configurations
+- **Environment Support**: Tag agents by environment (dev, staging, production)
+- **Per-Agent Configuration**: Each agent has its own:
+  - Direct Line credentials (bot ID, secret, WebSocket preferences)
+  - Judge evaluation settings (endpoint, API key, model, temperature, thresholds)
+  - Question generation settings (optional overrides, or use global defaults)
+  - Timeout and retry policies
+
+### Multi-Agent Test Execution
+- **Suite-Agent Mapping**: Associate test suites with one or multiple agents
+- **Parallel Execution**: Run the same test suite against multiple agents concurrently
+- **Coordinated Scheduling**: Built-in execution coordinator manages rate limits and concurrency
+- **Per-Agent Results**: Track success rates, latency, and quality metrics separately for each agent
+
+### Use Cases
+- **Cross-Environment Testing**: Run identical test suites against dev, staging, and production agents
+- **A/B Testing**: Compare two agent configurations side-by-side
+- **Regional Deployment**: Test agents deployed in different geographic regions
+- **Version Comparison**: Validate new agent versions against baseline behavior
 
 ## Architecture
 
@@ -47,8 +82,8 @@ An enterprise-grade .NET application for automated testing of Microsoft Copilot 
 ### Prerequisites
 
 - .NET 9 SDK
-- Azure AI Foundry endpoint (or OpenAI-compatible endpoint)
-- Copilot Studio Web Channel secret and bot ID (from the Copilot Studio agent URI)
+- Azure AI Foundry endpoint (or OpenAI-compatible endpoint) for judge evaluation
+- One or more Copilot Studio Web Channel secrets and bot IDs (from the Copilot Studio agent URI)
 
 ### Installation
 
@@ -63,8 +98,9 @@ dotnet build --configuration Release
 
 ### Configuration
 
-1. **Use the Setup Wizard** in the Web UI to enter Direct Line and AI Judge settings.
-   The wizard generates the `appsettings.json` file for you.
+1. **Use the Setup Wizard** in the Web UI to create your first agent and test suite.
+2. Add additional agents through the Agents page as needed.
+3. All configuration is stored in the SQLite database (no manual config file editing required).
 
 ### Running the Application
 
@@ -89,19 +125,29 @@ dotnet run -- list  # List all suites
 ### Web UI
 
 1. **Dashboard**: View summary metrics, recent runs, and quick actions
-2. **Test Suites**: Create, edit, and manage test case collections
-3. **Documents**: Upload PDFs/text files and auto-generate test cases
-4. **Setup Wizard**: Run guided setup for Direct Line and AI Judge settings
-5. **Settings**: Configure Direct Line, AI Judge, and execution parameters
-6. **Runs**: Browse past runs, view transcripts, and compare results
+2. **Agents**: Create, configure, and manage multiple Copilot Studio agents
+   - Configure Direct Line credentials per agent
+   - Set agent-specific Judge evaluation settings and thresholds
+   - Define question generation preferences
+   - Tag by environment (dev, staging, production)
+3. **Test Suites**: Create, edit, and manage test case collections
+   - Associate suites with one or multiple agents
+   - Define test cases manually or generate from documents
+4. **Documents**: Upload PDFs/text files and auto-generate test cases
+5. **Setup Wizard**: Run guided setup for creating your first agent and test suite
+6. **Runs**: Browse past runs, view transcripts, compare results across agents
 
 ### Setup Wizard
 
 Use the wizard on first run (or from the Web UI) to:
 
-1. Enter Direct Line Web Channel secret and bot ID
-2. Enter AI Foundry endpoint, deployment name, and API key
-3. Save settings to `appsettings.json`
+1. Create your first agent with:
+   - Agent name and environment tag
+   - Direct Line Web Channel secret and bot ID
+   - AI Foundry endpoint, deployment name, and API key
+   - Judge evaluation thresholds
+2. Create your first test suite with initial test cases
+3. Start testing immediately or add more agents
 
 ### CLI
 
@@ -154,11 +200,13 @@ Configurable weights determine overall pass/fail verdict.
 ## Database
 
 SQLite database with schema for:
-- Test Suites and Runs
-- Test Cases and Results
-- Transcripts and Messages
-- Documents and Chunks
-- Judge Settings
+- **Agents**: Agent configurations with Direct Line and Judge settings
+- **Test Suites and Runs**: Test suite definitions and execution history
+- **Suite-Agent Mappings**: Associations between test suites and agents
+- **Test Cases and Results**: Individual test cases and their outcomes
+- **Transcripts and Messages**: Full conversation logs
+- **Documents and Chunks**: Uploaded documents and indexed content
+- **Judge and Question Generation Settings**: Global and per-agent configurations
 
 ## Troubleshooting
 
@@ -178,6 +226,13 @@ SQLite database with schema for:
 - Run `dotnet ef database update` if migrating
 
 ## API Reference
+
+### Agents
+- `GET /api/agents` - List all agents
+- `GET /api/agents/{id}` - Get agent details
+- `POST /api/agents` - Create agent
+- `PUT /api/agents/{id}` - Update agent
+- `DELETE /api/agents/{id}` - Delete agent
 
 ### Test Suites
 - `GET /api/testsuites` - List all suites
@@ -202,6 +257,49 @@ SQLite database with schema for:
 
 ### Metrics
 - `GET /api/metrics/summary` - Dashboard summary
+
+## Recent Changes: Multi-Agent Support
+
+The application has been enhanced with comprehensive multi-agent capabilities:
+
+### Key Changes Implemented
+
+1. **Agent Entity & Database Schema**
+   - New `Agent` entity with complete configuration (Direct Line, Judge settings, question generation)
+   - `TestSuiteAgent` many-to-many relationship enabling suite-agent associations
+   - `Run` entity now tracks which agent was tested
+   - Migration support for upgrading existing databases
+
+2. **Agent Configuration Service**
+   - Centralized service for retrieving agent-specific configurations
+   - Support for per-agent Judge settings or fallback to global defaults
+   - Per-agent question generation settings with global fallback
+   - Runtime configuration resolution
+
+3. **Multi-Agent Execution Coordinator**
+   - Parallel test execution across multiple agents
+   - Rate limiting and concurrency control per agent
+   - Audit logging for multi-agent test runs
+   - Error isolation (one agent failure doesn't stop others)
+
+4. **Enhanced Web UI**
+   - Agent management pages (list, create, edit, delete)
+   - Updated setup wizard for agent-first configuration
+   - Run history shows which agent was tested
+   - Agent selection when creating/running test suites
+
+5. **Test Data Seeder**
+   - Sample multi-agent data for testing and demonstration
+   - Multiple sample agents (production, staging, development)
+   - Pre-configured test suites with agent associations
+
+### Migration from Single-Agent Version
+
+If upgrading from a previous version:
+1. The database will migrate automatically on first run
+2. Existing test suites can be associated with newly created agents
+3. Global Judge settings are preserved and can be overridden per agent
+4. No breaking changes to existing APIs (agents are optional parameters)
 
 ## Contributing
 

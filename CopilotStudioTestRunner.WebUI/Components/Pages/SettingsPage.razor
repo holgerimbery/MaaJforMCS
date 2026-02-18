@@ -3,7 +3,6 @@
 @using Microsoft.AspNetCore.Components.Web
 @using System.Text.Json
 @using System.IO
-@using CopilotStudioTestRunner.Core.DirectLine
 @using CopilotStudioTestRunner.Core.Evaluation
 @using CopilotStudioTestRunner.Domain.Entities
 @using Serilog
@@ -29,76 +28,21 @@
     <div style="background: white; border-bottom: 1px solid #e0e0e0; margin-bottom: 20px; border-radius: 8px 8px 0 0;">
         <div style="display: flex; gap: 5px; padding: 12px 20px;">
             <button class="tab-btn @(tab == 0 ? "active" : "")" @onclick="() => { tab = 0; ClearMessages(); }">
-                <i class="bi bi-link-45deg"></i> Direct Line
-            </button>
-            <button class="tab-btn @(tab == 1 ? "active" : "")" @onclick="() => { tab = 1; ClearMessages(); }">
                 <i class="bi bi-cpu"></i> AI Judge
             </button>
-            <button class="tab-btn @(tab == 2 ? "active" : "")" @onclick="() => { tab = 2; ClearMessages(); }">
+            <button class="tab-btn @(tab == 1 ? "active" : "")" @onclick="() => { tab = 1; ClearMessages(); }">
                 <i class="bi bi-sliders"></i> Execution
             </button>
-            <button class="tab-btn @(tab == 3 ? "active" : "")" @onclick="() => { tab = 3; ClearMessages(); }">
+            <button class="tab-btn @(tab == 2 ? "active" : "")" @onclick="() => { tab = 2; ClearMessages(); }">
                 <i class="bi bi-hdd-rack"></i> Storage
             </button>
-            <button class="tab-btn @(tab == 4 ? "active" : "")" @onclick="() => { tab = 4; ClearMessages(); }">
+            <button class="tab-btn @(tab == 3 ? "active" : "")" @onclick="() => { tab = 3; ClearMessages(); }">
                 <i class="bi bi-lightbulb-fill"></i> AI Question Gen
             </button>
         </div>
     </div>
-
-    <!-- Tab 0: Direct Line Configuration -->
+    <!-- Tab 0: AI Judge Configuration -->
     <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 0 ? "block" : "none");">
-        <h5 style="margin-bottom: 20px; color: #0d47a1;"><i class="bi bi-link-45deg"></i> Copilot Studio Connection</h5>
-        <p style="color: #666; margin-bottom: 20px;">Configure your Copilot Studio agent connection settings</p>
-        
-        <form @onsubmit="SaveDirectLine">
-            <div class="mb-3">
-                <label class="form-label" style="font-weight: 500;">Bot ID</label>
-                <input type="text" class="form-control" @bind="dlBotId" placeholder="example-bot-id" style="border-radius: 4px;" />
-                <small class="form-text text-muted">The unique identifier for your Copilot Studio bot</small>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" style="font-weight: 500;">Channel Secret</label>
-                <input type="password" class="form-control" @bind="dlSecret" placeholder="Enter your web channel or Direct Line secret" style="border-radius: 4px;" />
-                <small class="form-text text-muted">Use the web channel security secret or Direct Line secret</small>
-            </div>
-
-            <div class="mb-3">
-                <div class="form-check">
-                    <input type="checkbox" class="form-check-input" @bind="dlUseWebChannelSecret" id="dlWebChannelSecret" />
-                    <label class="form-check-label" for="dlWebChannelSecret">Use web channel secret (token per conversation)</label>
-                </div>
-                <small class="form-text text-muted">Enable this when using Web channel security secrets</small>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" style="font-weight: 500;">Reply Timeout (seconds)</label>
-                <input type="number" class="form-control" @bind="dlTimeout" min="5" max="300" style="border-radius: 4px;" />
-                <small class="form-text text-muted">Maximum time to wait for bot response (5-300 seconds)</small>
-            </div>
-
-            <div class="mb-3">
-                <div class="form-check">
-                    <input type="checkbox" class="form-check-input" @bind="dlUseWebSocket" id="dlWebSocket" />
-                    <label class="form-check-label" for="dlWebSocket">Use WebSocket Transport</label>
-                </div>
-                <small class="form-text text-muted">Enable WebSocket for real-time communication</small>
-            </div>
-
-            <div style="display: flex; gap: 10px; margin-top: 25px;">
-                <button type="submit" class="btn btn-primary" style="border-radius: 4px;">
-                    <i class="bi bi-save"></i> Save Configuration
-                </button>
-                <button type="button" class="btn btn-outline-secondary" @onclick="TestDirectLine" style="border-radius: 4px;">
-                    <i class="bi bi-shuffle"></i> Test Connection
-                </button>
-            </div>
-        </form>
-    </div>
-
-    <!-- Tab 1: AI Judge Configuration -->
-    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 1 ? "block" : "none");">
         <h5 style="margin-bottom: 20px; color: #0d47a1;"><i class="bi bi-cpu"></i> AI Judge Configuration</h5>
         <p style="color: #666; margin-bottom: 20px;">Configure Azure OpenAI endpoint for AI-powered evaluation</p>
         
@@ -164,8 +108,8 @@
         </form>
     </div>
 
-    <!-- Tab 2: Execution Configuration -->
-    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 2 ? "block" : "none");">
+    <!-- Tab 1: Execution Configuration -->
+    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 1 ? "block" : "none");">
         <h5 style="margin-bottom: 20px; color: #0d47a1;"><i class="bi bi-sliders"></i> Execution Configuration</h5>
         <p style="color: #666; margin-bottom: 20px;">Configure test execution behavior and performance parameters</p>
         
@@ -212,8 +156,8 @@
         </form>
     </div>
 
-    <!-- Tab 3: Storage Configuration -->
-    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 3 ? "block" : "none");">
+    <!-- Tab 2: Storage Configuration -->
+    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 2 ? "block" : "none");">
         <h5 style="margin-bottom: 20px; color: #0d47a1;"><i class="bi bi-hdd-rack"></i> Storage Configuration</h5>
         <p style="color: #666; margin-bottom: 20px;">Configure storage paths for database, indexes, and uploads</p>
         
@@ -244,8 +188,8 @@
         </form>
     </div>
 
-    <!-- Tab 4: AI Question Generation Configuration -->
-    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 4 ? "block" : "none");">
+    <!-- Tab 3: AI Question Generation Configuration -->
+    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 3 ? "block" : "none");">
         <h5 style="margin-bottom: 20px; color: #0d47a1;"><i class="bi bi-lightbulb-fill"></i> AI Question Generation (Azure OpenAI)</h5>
         <p style="color: #666; margin-bottom: 20px;">Configure Azure OpenAI endpoint for AI-powered test question generation</p>
         
@@ -348,13 +292,6 @@
     private string successMsg = "";
     private string errorMsg = "";
 
-    // Direct Line
-    private string dlBotId = "";
-    private string dlSecret = "";
-    private int dlTimeout = 30;
-    private bool dlUseWebSocket = true;
-    private bool dlUseWebChannelSecret = false;
-
     // Judge
     private string judgeEndpoint = "";
     private string judgeKey = "";
@@ -396,12 +333,6 @@
                 var config = JsonSerializer.Deserialize<ConfigData>(json);
                 if (config != null)
                 {
-                    dlBotId = config.DirectLine?.BotId ?? "";
-                    dlSecret = config.DirectLine?.Secret ?? "";
-                    dlTimeout = config.DirectLine?.Timeout ?? 30;
-                    dlUseWebSocket = config.DirectLine?.UseWebSocket ?? true;
-                    dlUseWebChannelSecret = config.DirectLine?.UseWebChannelSecret ?? false;
-
                     judgeEndpoint = config.Judge?.Endpoint ?? "";
                     judgeKey = config.Judge?.Key ?? "";
                     judgeModel = config.Judge?.Model ?? "gpt-4o-mini";
@@ -440,14 +371,6 @@
 
             var config = new ConfigData
             {
-                DirectLine = new DirectLineConfig
-                {
-                    BotId = dlBotId,
-                    Secret = dlSecret,
-                    Timeout = dlTimeout,
-                    UseWebSocket = dlUseWebSocket,
-                    UseWebChannelSecret = dlUseWebChannelSecret
-                },
                 Judge = new JudgeConfig { Endpoint = judgeEndpoint, Key = judgeKey, Model = judgeModel, Temperature = judgeTemp, TopP = judgeTopP, PassThreshold = judgePassThreshold },
                 QuestionGeneration = new QuestionGenerationConfig { Endpoint = qgenEndpoint, Key = qgenKey, Model = qgenModel },
                 Execution = new ExecutionConfig { MaxConcurrency = execMaxConcurrency, RateLimit = execRateLimit, Retries = execRetries, Backoff = execBackoff },
@@ -461,19 +384,6 @@
         {
             errorMsg = $"Error saving configuration: {ex.Message}";
         }
-    }
-
-    private async Task SaveDirectLine()
-    {
-        if (string.IsNullOrWhiteSpace(dlBotId) || string.IsNullOrWhiteSpace(dlSecret))
-        {
-            errorMsg = "Bot ID and Secret are required";
-            return;
-        }
-        await SaveConfiguration();
-        successMsg = "✓ Direct Line settings saved successfully";
-        await ConfigUpdated.InvokeAsync();
-        ClearMessages(3000);
     }
 
     private async Task SaveJudge()
@@ -603,104 +513,6 @@
             }
         }
         
-        ClearMessages(5000);
-    }
-
-    private async Task TestDirectLine()
-    {
-        if (string.IsNullOrWhiteSpace(dlSecret) || (!dlUseWebChannelSecret && string.IsNullOrWhiteSpace(dlBotId)))
-        {
-            errorMsg = "Please enter the secret and Bot ID (Bot ID optional for web channel secret)";
-            return;
-        }
-        try
-        {
-            var logger = Log.ForContext<SettingsPage>();
-            logger.Information("TestDirectLine: Starting test. UseWebChannelSecret={UseWebChannelSecret}", dlUseWebChannelSecret);
-            
-            var client = new DirectLineClient(dlSecret, dlBotId, dlTimeout, dlUseWebChannelSecret);
-            
-            // Start conversation
-            logger.Information("TestDirectLine: Calling StartConversationAsync");
-            var conversationId = await client.StartConversationAsync();
-            logger.Information("TestDirectLine: Got conversation ID: {ConversationId}", conversationId);
-            
-            if (string.IsNullOrEmpty(conversationId))
-            {
-                throw new InvalidOperationException("Failed to obtain conversation ID from agent");
-            }
-
-            // Send test message
-            logger.Information("TestDirectLine: Sending test message 'Hello' to conversation {ConversationId}", conversationId);
-            await client.SendActivityAsync(conversationId, "Hello");
-            logger.Information("TestDirectLine: Message sent successfully");
-
-            // Wait for response with timeout - poll until we get a response
-            logger.Information("TestDirectLine: Polling for agent response (up to {TimeoutSeconds} seconds)...", dlTimeout);
-            var responseActivities = new List<Activity>();
-            var watermark = string.Empty;
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            var pollInterval = 500; // 500ms between polls
-            
-            while (stopwatch.ElapsedMilliseconds < dlTimeout * 1000)
-            {
-                logger.Debug("TestDirectLine: Calling GetActivitiesAsync (elapsed: {ElapsedMs}ms)", stopwatch.ElapsedMilliseconds);
-                var response = await client.GetActivitiesAsync(conversationId, watermark);
-                var activities = response.activities;
-                if (!string.IsNullOrEmpty(response.watermark))
-                {
-                    watermark = response.watermark;
-                }
-
-                logger.Information("TestDirectLine: Retrieved {ActivityCount} activities", activities.Count);
-                
-                if (activities.Count > 0)
-                {
-                    logger.Information("TestDirectLine: Activity types: {ActivityTypes}", 
-                        string.Join(", ", activities.Select(a => $"{a.Type}(from:{a.From?.Id})")));
-                    
-                    responseActivities = activities.Where(a => a.Type == "message" && a.From?.Id != "user").ToList();
-                    logger.Information("TestDirectLine: Found {BotMessageCount} bot messages", responseActivities.Count);
-                    
-                    if (responseActivities.Count > 0)
-                    {
-                        logger.Information("TestDirectLine: Agent responded!");
-                        break;
-                    }
-                }
-                
-                if (responseActivities.Count == 0)
-                {
-                    await Task.Delay(pollInterval);
-                }
-            }
-
-            if (responseActivities.Count == 0)
-            {
-                throw new InvalidOperationException("Agent did not respond to test message. Ensure your agent is published and working correctly.");
-            }
-
-            successMsg = $"✓ Connection successful! Agent responded with: \"{responseActivities.First().Text}\"";
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "TestDirectLine failed");
-            
-            // Provide more helpful error messages based on error type
-            if (ex.Message.Contains("403") || ex.Message.Contains("Forbidden"))
-            {
-                errorMsg = "✗ Connection failed (403 Forbidden): The Direct Line secret is invalid or has been regenerated. " +
-                          "Please verify the secret is correct by copying it again from Copilot Studio → Settings → Security → Web channel security";
-            }
-            else if (ex.Message.Contains("401") || ex.Message.Contains("Unauthorized"))
-            {
-                errorMsg = "✗ Connection failed (401 Unauthorized): Invalid secret format. Verify the secret was copied completely and correctly.";
-            }
-            else
-            {
-                errorMsg = $"✗ Connection test failed: {ex.Message}";
-            }
-        }
         ClearMessages(5000);
     }
 
@@ -840,14 +652,11 @@
 
     private class ConfigData
     {
-        public DirectLineConfig? DirectLine { get; set; }
         public JudgeConfig? Judge { get; set; }
         public QuestionGenerationConfig? QuestionGeneration { get; set; }
         public ExecutionConfig? Execution { get; set; }
         public StorageConfig? Storage { get; set; }
     }
-
-    private class DirectLineConfig { public string BotId { get; set; } = ""; public string Secret { get; set; } = ""; public int Timeout { get; set; } = 30; public bool UseWebSocket { get; set; } = true; public bool UseWebChannelSecret { get; set; } = false; }
     private class JudgeConfig { public string Endpoint { get; set; } = ""; public string Key { get; set; } = ""; public string Model { get; set; } = ""; public double Temperature { get; set; } = 0.2; public double TopP { get; set; } = 0.9; public double PassThreshold { get; set; } = 0.7; }
     private class QuestionGenerationConfig { public string Endpoint { get; set; } = ""; public string Key { get; set; } = ""; public string Model { get; set; } = ""; }
     private class ExecutionConfig { public int MaxConcurrency { get; set; } = 5; public int RateLimit { get; set; } = 50; public int Retries { get; set; } = 2; public int Backoff { get; set; } = 4; }

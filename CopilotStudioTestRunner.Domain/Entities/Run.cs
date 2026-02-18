@@ -6,6 +6,7 @@ public class Run
 {
     public Guid Id { get; set; }
     public Guid SuiteId { get; set; }
+    public Guid? AgentId { get; set; } // Nullable for backward compatibility during migration
     public DateTime StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string Status { get; set; } = "running"; // 'running', 'completed', 'failed'
@@ -30,5 +31,6 @@ public class Run
     
     // Navigation
     public TestSuite? Suite { get; set; }
+    public Agent? Agent { get; set; }
     public ICollection<Result> Results { get; set; } = [];
 }

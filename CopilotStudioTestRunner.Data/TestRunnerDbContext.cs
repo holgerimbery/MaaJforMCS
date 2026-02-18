@@ -11,10 +11,14 @@ public class TestRunnerDbContext : DbContext
     }
 
     // Entities
+    public DbSet<Agent> Agents { get; set; }
+    public DbSet<TestSuiteAgent> TestSuiteAgents { get; set; }
+    public DbSet<GlobalQuestionGenerationSetting> GlobalQuestionGenerationSettings { get; set; }
     public DbSet<Document> Documents { get; set; }
     public DbSet<Chunk> Chunks { get; set; }
     public DbSet<TestSuite> TestSuites { get; set; }
     public DbSet<TestCase> TestCases { get; set; }
+    public DbSet<TestCaseDocument> TestCaseDocuments { get; set; }
     public DbSet<Run> Runs { get; set; }
     public DbSet<Result> Results { get; set; }
     public DbSet<TranscriptMessage> TranscriptMessages { get; set; }
@@ -25,6 +29,34 @@ public class TestRunnerDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // Configure Agent relationships
+        modelBuilder.Entity<TestSuiteAgent>()
+            .HasKey(tsa => new { tsa.TestSuiteId, tsa.AgentId });
+
+        modelBuilder.Entity<TestSuiteAgent>()
+            .HasOne(tsa => tsa.TestSuite)
+            .WithMany(ts => ts.TestSuiteAgents)
+            .HasForeignKey(tsa => tsa.TestSuiteId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TestSuiteAgent>()
+            .HasOne(tsa => tsa.Agent)
+            .WithMany(a => a.TestSuiteAgents)
+            .HasForeignKey(tsa => tsa.AgentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Run>()
+            .HasOne(r => r.Agent)
+            .WithMany(a => a.Runs)
+            .HasForeignKey(r => r.AgentId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Result>()
+            .HasOne(r => r.Agent)
+            .WithMany()
+            .HasForeignKey(r => r.AgentId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Configure relationships
         modelBuilder.Entity<Chunk>()
@@ -44,6 +76,21 @@ public class TestRunnerDbContext : DbContext
             .WithMany(d => d.GeneratedTestCases)
             .HasForeignKey(tc => tc.SourceDocumentId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<TestCaseDocument>()
+            .HasKey(tcd => new { tcd.TestCaseId, tcd.DocumentId });
+
+        modelBuilder.Entity<TestCaseDocument>()
+            .HasOne(tcd => tcd.TestCase)
+            .WithMany(tc => tc.TestCaseDocuments)
+            .HasForeignKey(tcd => tcd.TestCaseId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TestCaseDocument>()
+            .HasOne(tcd => tcd.Document)
+            .WithMany(d => d.TestCaseDocuments)
+            .HasForeignKey(tcd => tcd.DocumentId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Run>()
             .HasOne(r => r.Suite)
@@ -70,6 +117,11 @@ public class TestRunnerDbContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
 
         // Configure value conversions
+        modelBuilder.Entity<Agent>()
+            .Property(a => a.Name)
+            .HasMaxLength(255)
+            .IsRequired();
+
         modelBuilder.Entity<Document>()
             .Property(d => d.Name)
             .HasMaxLength(255)
@@ -86,6 +138,15 @@ public class TestRunnerDbContext : DbContext
             .IsRequired();
 
         // Create indexes for better query performance
+        modelBuilder.Entity<TestSuiteAgent>()
+            .HasIndex(tsa => tsa.AgentId);
+
+        modelBuilder.Entity<Run>()
+            .HasIndex(r => r.AgentId);
+
+        modelBuilder.Entity<Result>()
+            .HasIndex(r => r.AgentId);
+
         modelBuilder.Entity<Result>()
             .HasIndex(r => new { r.RunId, r.TestCaseId })
             .IsUnique();
@@ -95,6 +156,9 @@ public class TestRunnerDbContext : DbContext
 
         modelBuilder.Entity<TestCase>()
             .HasIndex(tc => tc.SuiteId);
+
+        modelBuilder.Entity<TestCaseDocument>()
+            .HasIndex(tcd => tcd.DocumentId);
 
         modelBuilder.Entity<Run>()
             .HasIndex(r => r.SuiteId);

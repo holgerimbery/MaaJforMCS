@@ -58,6 +58,9 @@ public class Conversation
 {
     [JsonPropertyName("id")]
     public string? Id { get; set; }
+    
+    [JsonPropertyName("conversationId")]
+    public string? ConversationId { get; set; }
 }
 
 /// <summary>
@@ -151,7 +154,9 @@ public class DirectLineClient : IDirectLineClient
             var content = await response2.Content.ReadAsStringAsync(cancellationToken);
             var conversation = JsonSerializer.Deserialize<Conversation>(content);
 
-            if (string.IsNullOrEmpty(conversation?.Id))
+            var conversationId = conversation?.Id ?? conversation?.ConversationId;
+            
+            if (string.IsNullOrEmpty(conversationId))
             {
                 _logger.Warning("Start conversation response missing id. Status: {StatusCode}. Body: {Body}",
                     (int)response2.StatusCode,
@@ -159,8 +164,8 @@ public class DirectLineClient : IDirectLineClient
                 throw new InvalidOperationException("Failed to start conversation: no ID returned");
             }
 
-            _logger.Information("Started Direct Line conversation: {ConversationId}", conversation.Id);
-            return conversation.Id;
+            _logger.Information("Started Direct Line conversation: {ConversationId}", conversationId);
+            return conversationId;
         }
         catch (Exception ex)
         {

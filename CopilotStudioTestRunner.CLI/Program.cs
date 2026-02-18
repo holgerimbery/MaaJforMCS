@@ -129,7 +129,7 @@ static async Task<int> RunSuiteAsync(Dictionary<string, string?> options)
             .Options;
 
         using var dbContext = new TestRunnerDbContext(dbOptions);
-        dbContext.Database.EnsureCreated();
+        dbContext.Database.Migrate();
 
         var testSuite = await dbContext.TestSuites
             .Include(s => s.TestCases)

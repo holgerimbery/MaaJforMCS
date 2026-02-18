@@ -71,6 +71,7 @@
                         <thead>
                             <tr>
                                 <th style="text-align: left;">Suite Name</th>
+                                <th style="text-align: left;">Agent</th>
                                 <th style="text-align: left;">Date</th>
                                 <th style="text-align: center;">Passed</th>
                                 <th style="text-align: center;">Failed</th>
@@ -94,6 +95,7 @@
                                             <strong>@GetSuiteName(run)</strong>
                                         </a>
                                     </td>
+                                    <td>@GetAgentName(run)</td>
                                     <td>@run.StartedAt.ToString("MMM dd, HH:mm:ss")</td>
                                     <td style="text-align: center;">
                                         <span class="badge badge-success" style="background-color: rgba(16, 185, 129, 0.15); color: var(--success); padding: 6px 12px;">
@@ -376,6 +378,7 @@
     private string errorMessage = "";
     private TestAnalysis? testAnalysis;
     private Dictionary<Guid, string> suiteNameMap = new();
+    private Dictionary<Guid, string> agentNameMap = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -395,6 +398,7 @@
             // Get recent runs
             recentRuns = await DbContext.Runs
                 .Include(r => r.Suite)
+                .Include(r => r.Agent)
                 .OrderByDescending(r => r.StartedAt)
                 .Take(10)
                 .ToListAsync();
@@ -404,8 +408,19 @@
                 .Where(s => suiteIds.Contains(s.Id))
                 .ToDictionaryAsync(s => s.Id, s => s.Name);
 
+            var agentIds = recentRuns
+                .Where(r => r.AgentId.HasValue)
+                .Select(r => r.AgentId!.Value)
+                .Distinct()
+                .ToList();
+            agentNameMap = await DbContext.Agents
+                .Where(a => agentIds.Contains(a.Id))
+                .ToDictionaryAsync(a => a.Id, a => a.Name);
+
             // Calculate metrics
-            var allResults = await DbContext.Results.ToListAsync();
+            var allResults = await DbContext.Results
+                .Include(r => r.TestCase)
+                .ToListAsync();
             if (allResults.Count > 0)
             {
                 var passCount = allResults.Count(r => r.Verdict == "pass");
@@ -509,6 +524,21 @@
         }
 
         return "Unknown";
+    }
+
+    private string GetAgentName(Run run)
+    {
+        if (run.Agent != null && !string.IsNullOrWhiteSpace(run.Agent.Name))
+        {
+            return run.Agent.Name;
+        }
+
+        if (run.AgentId.HasValue && agentNameMap.TryGetValue(run.AgentId.Value, out var name) && !string.IsNullOrWhiteSpace(name))
+        {
+            return name;
+        }
+
+        return "Unassigned";
     }
 
     private double GetMedian(List<double> values)

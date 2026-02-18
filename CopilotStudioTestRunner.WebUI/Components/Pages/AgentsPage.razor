@@ -1,0 +1,893 @@
+@page "/agents"
+@layout MainLayout
+@using CopilotStudioTestRunner.Data
+@using CopilotStudioTestRunner.Domain.Entities
+@using CopilotStudioTestRunner.Core.DirectLine
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@using System.IO
+
+@inject TestRunnerDbContext DbContext
+@inject IJSRuntime JS
+
+<div style="max-width: 1400px;">
+    <div style="display: flex; gap: 12px; margin-bottom: 24px; align-items: center;">
+        <div>
+            <h2 style="margin: 0; color: #1f1f23;">
+                <i class="bi bi-robot" style="color: #0066cc; margin-right: 8px;"></i>Agents
+            </h2>
+            <p style="margin: 4px 0 0 0; color: #5f6368; font-size: 14px;">Manage test agents and their configurations</p>
+        </div>
+        <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button class="btn btn-primary" @onclick="() => { showNewAgentForm = !showNewAgentForm; if (showNewAgentForm) ResetNewAgentForm(); }">
+                <i class="bi bi-plus-circle"></i> Create Agent
+            </button>
+            <button class="btn btn-outline-secondary" @onclick="RefreshAgents">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMsg))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle"></i> @successMsg
+            <button type="button" class="btn-close" @onclick="@((e) => { successMsg = null; })"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMsg))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-circle"></i> @errorMsg
+            <button type="button" class="btn-close" @onclick="@((e) => { errorMsg = null; })"></button>
+        </div>
+    }
+
+    <!-- New Agent Form -->
+    @if (showNewAgentForm)
+    {
+        <div style="background: #f5f6f8; border: 1px solid #e8eaed; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+            <h4 style="margin-top: 0; color: #1f1f23;">
+                <i class="bi bi-file-earmark-plus" style="color: #0066cc; margin-right: 8px;"></i>Create New Agent
+            </h4>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Agent Name <span style="color: red;">*</span></label>
+                        <input type="text" class="form-control" @bind="newAgent.Name" placeholder="e.g., Production Agent" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Environment</label>
+                        <select class="form-select" @bind="newAgent.Environment">
+                            <option value="production">Production</option>
+                            <option value="staging">Staging</option>
+                            <option value="test">Test</option>
+                            <option value="dev">Development</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" @bind="newAgent.Description" rows="2" placeholder="Optional description"></textarea>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Direct Line Bot ID <span style="color: red;">*</span></label>
+                        <input type="text" class="form-control" @bind="newAgent.DirectLineBotId" placeholder="Bot ID" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Direct Line Secret <span style="color: red;">*</span></label>
+                        <input type="password" class="form-control" @bind="newAgent.DirectLineSecret" placeholder="Direct Line secret" />
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="useWebChannelSecretNew" @bind="newAgent.DirectLineUseWebChannelSecret" />
+                        <label class="form-check-label" for="useWebChannelSecretNew">Use Web Channel Secret</label>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Reply Timeout (seconds)</label>
+                        <input type="number" class="form-control" @bind="newAgent.DirectLineReplyTimeoutSeconds" min="10" max="300" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div style="border-top: 1px solid #e8eaed; padding-top: 16px; margin-top: 16px;">
+                        <h6 style="color: #0066cc; margin-bottom: 12px;">
+                            <i class="bi bi-scale-balance"></i> Judge Configuration
+                        </h6>
+
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="useGlobalJudgeNew" checked="@useGlobalJudgeForNew" @onchange="OnUseGlobalJudgeForNewChanged" />
+                            <label class="form-check-label" for="useGlobalJudgeNew">Use global Judge settings</label>
+                            <div style="color: #5f6368; font-size: 12px; margin-top: 4px;">
+                                Global Judge: @globalJudgeModel (@(string.IsNullOrWhiteSpace(globalJudgeEndpoint) ? "not configured" : "configured"))
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Endpoint <span style="color: red;">*</span></label>
+                            <input type="text" class="form-control" @bind="newAgent.JudgeEndpoint" placeholder="https://..." disabled="@useGlobalJudgeForNew" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">API Key <span style="color: red;">*</span></label>
+                            <input type="password" class="form-control" @bind="newAgent.JudgeApiKey" placeholder="API Key" disabled="@useGlobalJudgeForNew" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Model</label>
+                            <input type="text" class="form-control" @bind="newAgent.JudgeModel" placeholder="gpt-4o-mini" disabled="@useGlobalJudgeForNew" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div style="border-top: 1px solid #e8eaed; padding-top: 16px; margin-top: 16px;">
+                        <h6 style="color: #0066cc; margin-bottom: 12px;">
+                            <i class="bi bi-chat-dots"></i> Question Generation (Optional Override)
+                        </h6>
+
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="useGlobalQGenNew" checked="@useGlobalQuestionGenForNew" @onchange="OnUseGlobalQuestionGenForNewChanged" />
+                            <label class="form-check-label" for="useGlobalQGenNew">Use global question generation settings</label>
+                            <div style="color: #5f6368; font-size: 12px; margin-top: 4px;">
+                                Global QGen: @globalQuestionGenModel (@(string.IsNullOrWhiteSpace(globalQuestionGenEndpoint) ? "not configured" : "configured"))
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Endpoint</label>
+                            <input type="text" class="form-control" @bind="newAgent.QuestionGenEndpoint" placeholder="Leave empty to use global default" disabled="@useGlobalQuestionGenForNew" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">API Key</label>
+                            <input type="password" class="form-control" @bind="newAgent.QuestionGenApiKey" placeholder="Leave empty to use global default" disabled="@useGlobalQuestionGenForNew" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Model</label>
+                            <input type="text" class="form-control" @bind="newAgent.QuestionGenModel" placeholder="Leave empty to use global default" disabled="@useGlobalQuestionGenForNew" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; display: flex; gap: 8px;">
+                <button type="button" class="btn btn-outline-primary" @onclick="TestNewAgentConnection" disabled="@isTestingNewConnection">
+                    @if (isTestingNewConnection)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span> Testing...</span>
+                    }
+                    else
+                    {
+                        <span><i class="bi bi-plug"></i> Test Connection</span>
+                    }
+                </button>
+                <button type="button" class="btn btn-primary" @onclick="CreateAgent" disabled="@string.IsNullOrEmpty(newAgent.Name)">
+                    <i class="bi bi-check-circle"></i> Create
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="() => { showNewAgentForm = false; }">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    }
+
+    <!-- Edit Agent Modal -->
+    @if (showEditModal && editingAgent != null)
+    {
+        <div class="modal-backdrop" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;" @onclick="() => showEditModal = false">
+            <div class="modal-content" style="background: #ffffff; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); max-width: 1000px; width: 100%; max-height: 85vh; overflow-y: auto; position: relative;" @onclick:stopPropagation="true">
+                <!-- Modal Header -->
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px; border-bottom: 1px solid #e8eaed; position: sticky; top: 0; background: #ffffff; border-radius: 12px 12px 0 0;">
+                    <h3 style="margin: 0; color: #1f1f23;">
+                        <i class="bi bi-pencil" style="color: #0066cc; margin-right: 8px;"></i>Edit Agent: @editingAgent.Name
+                    </h3>
+                    <button type="button" class="btn-close" @onclick="() => showEditModal = false" style="margin: 0;"></button>
+                </div>
+
+                <!-- Modal Body -->
+                <div style="padding: 24px;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Name <span style="color: red;">*</span></label>
+                                <input type="text" class="form-control" @bind="editingAgent.Name" placeholder="Agent Name" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <textarea class="form-control" @bind="editingAgent.Description" rows="3"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Environment</label>
+                                <select class="form-control" @bind="editingAgent.Environment">
+                                    <option value="production">Production</option>
+                                    <option value="staging">Staging</option>
+                                    <option value="test">Test</option>
+                                    <option value="dev">Development</option>
+                                </select>
+                            </div>
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" @bind="editingAgent.IsActive" id="isActiveEdit" />
+                                <label class="form-check-label" for="isActiveEdit">Active</label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 style="color: #0066cc; margin-bottom: 12px;">
+                                <i class="bi bi-chat-left-dots"></i> Direct Line
+                            </h6>
+
+                            <div class="mb-3">
+                                <label class="form-label">Bot ID <span style="color: red;">*</span></label>
+                                <input type="text" class="form-control" @bind="editingAgent.DirectLineBotId" placeholder="Your Bot ID" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Secret <span style="color: red;">*</span></label>
+                                <input type="password" class="form-control" @bind="editingAgent.DirectLineSecret" placeholder="Your Direct Line Secret" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Timeout (seconds)</label>
+                                <input type="number" class="form-control" @bind="editingAgent.DirectLineReplyTimeoutSeconds" min="5" max="300" />
+                            </div>
+
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" @bind="editingAgent.DirectLineUseWebChannelSecret" id="webChannelEdit" />
+                                <label class="form-check-label" for="webChannelEdit">Use Web Channel Secret</label>
+                            </div>
+
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" @bind="editingAgent.DirectLineUseWebSocket" id="webSocketEdit" />
+                                <label class="form-check-label" for="webSocketEdit">Use WebSocket</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr style="border: none; border-top: 1px solid #e8eaed; margin: 24px 0;" />
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 style="color: #0066cc; margin-bottom: 12px;">
+                                <i class="bi bi-check-circle"></i> Judge
+                            </h6>
+
+                            <div class="form-check mb-3">
+                                <input type="checkbox" class="form-check-input" id="useGlobalJudgeEdit" checked="@useGlobalJudgeForEdit" @onchange="OnUseGlobalJudgeForEditChanged" />
+                                <label class="form-check-label" for="useGlobalJudgeEdit">Use global Judge settings</label>
+                                <div style="color: #5f6368; font-size: 12px; margin-top: 4px;">
+                                    Global Judge: @globalJudgeModel (@(string.IsNullOrWhiteSpace(globalJudgeEndpoint) ? "not configured" : "configured"))
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Endpoint <span style="color: red;">*</span></label>
+                                <input type="text" class="form-control" @bind="editingAgent.JudgeEndpoint" placeholder="https://..." disabled="@useGlobalJudgeForEdit" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">API Key <span style="color: red;">*</span></label>
+                                <input type="password" class="form-control" @bind="editingAgent.JudgeApiKey" placeholder="API Key" disabled="@useGlobalJudgeForEdit" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Model</label>
+                                <input type="text" class="form-control" @bind="editingAgent.JudgeModel" placeholder="gpt-4o-mini" disabled="@useGlobalJudgeForEdit" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Pass Threshold (0-1)</label>
+                                <input type="number" class="form-control" @bind="editingAgent.JudgePassThreshold" min="0" max="1" step="0.01" />
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 style="color: #0066cc; margin-bottom: 12px;">
+                                <i class="bi bi-chat-dots"></i> Question Generation (Optional Override)
+                            </h6>
+
+                            <div class="form-check mb-3">
+                                <input type="checkbox" class="form-check-input" id="useGlobalQGenEdit" checked="@useGlobalQuestionGenForEdit" @onchange="OnUseGlobalQuestionGenForEditChanged" />
+                                <label class="form-check-label" for="useGlobalQGenEdit">Use global question generation settings</label>
+                                <div style="color: #5f6368; font-size: 12px; margin-top: 4px;">
+                                    Global QGen: @globalQuestionGenModel (@(string.IsNullOrWhiteSpace(globalQuestionGenEndpoint) ? "not configured" : "configured"))
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Endpoint</label>
+                                <input type="text" class="form-control" @bind="editingAgent.QuestionGenEndpoint" placeholder="Leave empty to use global default" disabled="@useGlobalQuestionGenForEdit" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">API Key</label>
+                                <input type="password" class="form-control" @bind="editingAgent.QuestionGenApiKey" placeholder="Leave empty to use global default" disabled="@useGlobalQuestionGenForEdit" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Model</label>
+                                <input type="text" class="form-control" @bind="editingAgent.QuestionGenModel" placeholder="Leave empty to use global default" disabled="@useGlobalQuestionGenForEdit" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div style="display: flex; justify-content: flex-end; gap: 12px; padding: 20px 24px; border-top: 1px solid #e8eaed; background-color: #f5f6f8; border-radius: 0 0 12px 12px; position: sticky; bottom: 0;">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => showEditModal = false">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveAgentChanges" disabled="@(string.IsNullOrEmpty(editingAgent.Name) || string.IsNullOrEmpty(editingAgent.DirectLineBotId) || string.IsNullOrEmpty(editingAgent.JudgeEndpoint))">
+                        <i class="bi bi-save"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Agents List -->
+    @if (agents == null)
+    {
+        <div style="text-align: center; padding: 40px; color: #5f6368;">
+            <i class="bi bi-hourglass-split" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+            Loading agents...
+        </div>
+    }
+    else if (!agents.Any())
+    {
+        <div style="background: #f5f6f8; border: 1px dashed #e8eaed; border-radius: 12px; padding: 40px; text-align: center;">
+            <i class="bi bi-inbox" style="font-size: 32px; color: #5f6368; margin-bottom: 12px; display: block;"></i>
+            <p style="color: #5f6368; margin: 0;">No agents configured yet. Create your first agent to get started.</p>
+        </div>
+    }
+    else
+    {
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 20px;">
+            @foreach (var agent in agents)
+            {
+                <div style="background: #ffffff; border: 1px solid #e8eaed; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                    <!-- Header -->
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                        <div style="flex: 1;">
+                            <h5 style="margin: 0 0 4px 0; color: #1f1f23;">
+                                <i class="bi bi-robot" style="color: #0066cc; margin-right: 6px;"></i>@agent.Name
+                            </h5>
+                            <span style="display: inline-block; background: #e8f0ff; color: #0066cc; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">
+                                @agent.Environment
+                            </span>
+                            @if (!agent.IsActive)
+                            {
+                                <span style="display: inline-block; background: #ffebee; color: #d32f2f; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; margin-left: 4px;">
+                                    Inactive
+                                </span>
+                            }
+                        </div>
+                        <div style="display: flex; gap: 4px;">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => EditAgent(agent.Id)" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAgent(agent.Id)" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(agent.Description))
+                    {
+                        <p style="color: #5f6368; font-size: 13px; margin: 8px 0; font-style: italic;">@agent.Description</p>
+                    }
+
+                    <!-- Direct Line Section -->
+                    <div style="background: #f5f6f8; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                        <h6 style="color: #0066cc; margin: 0 0 8px 0; font-size: 13px;">
+                            <i class="bi bi-link-45deg"></i> Direct Line
+                        </h6>
+                        <div style="font-size: 12px; color: #5f6368; line-height: 1.6;">
+                            <div><strong>Bot ID:</strong> <code>@agent.DirectLineBotId</code></div>
+                            <div><strong>Secret:</strong> <code>@MaskSecret(agent.DirectLineSecret)</code></div>
+                            <div><strong>Timeout:</strong> @agent.DirectLineReplyTimeoutSeconds seconds</div>
+                        </div>
+                    </div>
+
+                    <!-- Judge Section -->
+                    <div style="background: #f5f6f8; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                        <h6 style="color: #0066cc; margin: 0 0 8px 0; font-size: 13px;">
+                            <i class="bi bi-scale-balance"></i> Judge
+                        </h6>
+                        <div style="font-size: 12px; color: #5f6368; line-height: 1.6;">
+                            <div><strong>Model:</strong> @agent.JudgeModel</div>
+                            <div><strong>API Key:</strong> <code>@MaskSecret(agent.JudgeApiKey)</code></div>
+                            <div><strong>Pass Threshold:</strong> @(agent.JudgePassThreshold * 100)%</div>
+                        </div>
+                    </div>
+
+                    <!-- Question Gen Override Badge -->
+                    @if (!string.IsNullOrEmpty(agent.QuestionGenEndpoint))
+                    {
+                        <div style="background: #e8f5e9; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; border-left: 3px solid #4caf50;">
+                            <span style="font-size: 12px; color: #2e7d32; font-weight: 500;">
+                                <i class="bi bi-check-circle"></i> Custom Question Generation Override Applied
+                            </span>
+                        </div>
+                    }
+
+                    <!-- Footer -->
+                    <div style="color: #9aa0a6; font-size: 11px; border-top: 1px solid #e8eaed; padding-top: 8px; margin-top: 8px;">
+                        Created: @agent.CreatedAt.ToString("MMM dd, yyyy")
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Agent>? agents;
+    private bool showNewAgentForm = false;
+    private Agent newAgent = new();
+    private string? successMsg;
+    private string? errorMsg;
+    private bool isTestingNewConnection = false;
+    private bool showEditModal = false;
+    private Agent? editingAgent = null;
+    private const string CONFIG_FILE = "./data/settings.json";
+    private bool useGlobalJudgeForNew = true;
+    private bool useGlobalQuestionGenForNew = true;
+    private bool useGlobalJudgeForEdit = true;
+    private bool useGlobalQuestionGenForEdit = true;
+    private string globalJudgeEndpoint = "";
+    private string globalJudgeApiKey = "";
+    private string globalJudgeModel = "gpt-4o-mini";
+    private string globalQuestionGenEndpoint = "";
+    private string globalQuestionGenApiKey = "";
+    private string globalQuestionGenModel = "gpt-4o-mini";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGlobalSettings();
+        await RefreshAgents();
+    }
+
+    private async Task LoadGlobalSettings()
+    {
+        try
+        {
+            if (!File.Exists(CONFIG_FILE))
+            {
+                return;
+            }
+
+            var json = await File.ReadAllTextAsync(CONFIG_FILE);
+            var config = JsonSerializer.Deserialize<GlobalConfigData>(json);
+            if (config?.Judge != null)
+            {
+                globalJudgeEndpoint = config.Judge.Endpoint ?? "";
+                globalJudgeApiKey = config.Judge.Key ?? "";
+                globalJudgeModel = string.IsNullOrWhiteSpace(config.Judge.Model) ? "gpt-4o-mini" : config.Judge.Model;
+            }
+
+            if (config?.QuestionGeneration != null)
+            {
+                globalQuestionGenEndpoint = config.QuestionGeneration.Endpoint ?? "";
+                globalQuestionGenApiKey = config.QuestionGeneration.Key ?? "";
+                globalQuestionGenModel = string.IsNullOrWhiteSpace(config.QuestionGeneration.Model) ? "gpt-4o-mini" : config.QuestionGeneration.Model;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading global settings: {ex.Message}";
+        }
+    }
+
+    private async Task RefreshAgents()
+    {
+        try
+        {
+            agents = await DbContext.Agents.OrderByDescending(a => a.CreatedAt).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading agents: {ex.Message}";
+        }
+    }
+
+    private void ResetNewAgentForm()
+    {
+        useGlobalJudgeForNew = true;
+        useGlobalQuestionGenForNew = true;
+
+        newAgent = new Agent
+        {
+            Id = Guid.NewGuid(),
+            DirectLineReplyTimeoutSeconds = 30,
+            DirectLineMaxRetries = 2,
+            DirectLineBackoffSeconds = 4,
+            DirectLineUseWebSocket = true,
+            JudgeModel = "gpt-4o-mini",
+            JudgeTemperature = 0.2,
+            JudgeTopP = 0.9,
+            JudgePassThreshold = 0.7,
+            JudgeMaxOutputTokens = 800,
+            Environment = "production",
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = "user"
+        };
+
+        ApplyGlobalJudgeToNewAgent();
+        ApplyGlobalQuestionGenToNewAgent();
+    }
+
+    private async Task CreateAgent()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(newAgent.Name))
+            {
+                errorMsg = "Agent name is required";
+                return;
+            }
+
+            if (string.IsNullOrEmpty(newAgent.DirectLineSecret) ||
+                (!newAgent.DirectLineUseWebChannelSecret && string.IsNullOrEmpty(newAgent.DirectLineBotId)))
+            {
+                errorMsg = "Direct Line Secret is required, and Bot ID is required unless using Web Channel Secret.";
+                return;
+            }
+
+            if (useGlobalJudgeForNew)
+            {
+                if (string.IsNullOrWhiteSpace(globalJudgeEndpoint) || string.IsNullOrWhiteSpace(globalJudgeApiKey))
+                {
+                    errorMsg = "Global Judge settings are missing. Configure them in Settings first.";
+                    return;
+                }
+
+                ApplyGlobalJudgeToNewAgent();
+            }
+
+            if (string.IsNullOrEmpty(newAgent.JudgeEndpoint) || string.IsNullOrEmpty(newAgent.JudgeApiKey))
+            {
+                errorMsg = "Judge Endpoint and API Key are required";
+                return;
+            }
+
+            if (useGlobalQuestionGenForNew)
+            {
+                newAgent.QuestionGenEndpoint = null;
+                newAgent.QuestionGenApiKey = null;
+                newAgent.QuestionGenModel = null;
+            }
+            else if (string.IsNullOrWhiteSpace(newAgent.QuestionGenEndpoint) ||
+                     string.IsNullOrWhiteSpace(newAgent.QuestionGenApiKey) ||
+                     string.IsNullOrWhiteSpace(newAgent.QuestionGenModel))
+            {
+                errorMsg = "Question Generation Endpoint, API Key, and Model are required when using agent-specific settings.";
+                return;
+            }
+
+            newAgent.UpdatedAt = DateTime.UtcNow;
+            DbContext.Agents.Add(newAgent);
+            await DbContext.SaveChangesAsync();
+
+            successMsg = $"Agent '{newAgent.Name}' created successfully";
+            showNewAgentForm = false;
+            ResetNewAgentForm();
+            await RefreshAgents();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error creating agent: {ex.Message}";
+        }
+    }
+
+    private async Task TestNewAgentConnection()
+    {
+        errorMsg = null;
+        successMsg = null;
+        isTestingNewConnection = true;
+
+        Console.WriteLine($"[AgentsPage] Testing connection. UseWebChannelSecret={newAgent.DirectLineUseWebChannelSecret}, BotId={(string.IsNullOrWhiteSpace(newAgent.DirectLineBotId) ? "<empty>" : "<set>")}, Timeout={newAgent.DirectLineReplyTimeoutSeconds}s");
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(newAgent.DirectLineSecret))
+            {
+                errorMsg = "Direct Line Secret is required to test the connection.";
+                return;
+            }
+
+            if (!newAgent.DirectLineUseWebChannelSecret && string.IsNullOrWhiteSpace(newAgent.DirectLineBotId))
+            {
+                errorMsg = "Direct Line Bot ID is required unless using Web Channel Secret.";
+                return;
+            }
+
+            var dlClient = new DirectLineClient(
+                newAgent.DirectLineSecret,
+                newAgent.DirectLineBotId,
+                newAgent.DirectLineReplyTimeoutSeconds,
+                newAgent.DirectLineUseWebChannelSecret);
+
+            var conversationId = await dlClient.StartConversationAsync();
+            if (string.IsNullOrEmpty(conversationId))
+            {
+                throw new InvalidOperationException("Failed to obtain conversation ID from agent");
+            }
+
+            await dlClient.SendActivityAsync(conversationId, "Hello");
+
+            var (activities, watermark) = await dlClient.StreamActivitiesWebSocketAsync(
+                conversationId,
+                _ => Task.CompletedTask);
+
+            var responseActivities = activities
+                .Where(a => a.Type == "message" && a.From?.Id != "user")
+                .ToList();
+
+            Console.WriteLine($"[AgentsPage] Retrieved {responseActivities.Count} bot message(s). Watermark='{watermark}'.");
+
+            if (responseActivities.Count == 0)
+            {
+                throw new InvalidOperationException("Agent did not respond to test message. Ensure your agent is published and working correctly.");
+            }
+
+            successMsg = "✓ Connection successful! Agent responded.";
+            Console.WriteLine("[AgentsPage] Connection test succeeded.");
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Connection test failed: {ex.Message}";
+            Console.WriteLine($"[AgentsPage] Connection test failed: {ex.Message}");
+        }
+        finally
+        {
+            isTestingNewConnection = false;
+        }
+    }
+
+    private async Task EditAgent(Guid agentId)
+    {
+        try
+        {
+            var agent = await DbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId);
+            if (agent != null)
+            {
+                editingAgent = agent;
+                useGlobalJudgeForEdit = IsUsingGlobalJudge(agent);
+                useGlobalQuestionGenForEdit = IsUsingGlobalQuestionGen(agent);
+                ApplyGlobalJudgeToEditAgent();
+                showEditModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading agent: {ex.Message}";
+        }
+    }
+
+    private async Task SaveAgentChanges()
+    {
+        try
+        {
+            if (editingAgent == null)
+            {
+                errorMsg = "No agent selected for editing";
+                return;
+            }
+
+            if (string.IsNullOrEmpty(editingAgent.Name))
+            {
+                errorMsg = "Agent name is required";
+                return;
+            }
+
+            if (string.IsNullOrEmpty(editingAgent.DirectLineBotId) || string.IsNullOrEmpty(editingAgent.DirectLineSecret))
+            {
+                errorMsg = "Direct Line Bot ID and Secret are required";
+                return;
+            }
+
+            if (useGlobalJudgeForEdit)
+            {
+                if (string.IsNullOrWhiteSpace(globalJudgeEndpoint) || string.IsNullOrWhiteSpace(globalJudgeApiKey))
+                {
+                    errorMsg = "Global Judge settings are missing. Configure them in Settings first.";
+                    return;
+                }
+
+                ApplyGlobalJudgeToEditAgent();
+            }
+
+            if (string.IsNullOrEmpty(editingAgent.JudgeEndpoint) || string.IsNullOrEmpty(editingAgent.JudgeApiKey))
+            {
+                errorMsg = "Judge Endpoint and API Key are required";
+                return;
+            }
+
+            if (useGlobalQuestionGenForEdit)
+            {
+                editingAgent.QuestionGenEndpoint = null;
+                editingAgent.QuestionGenApiKey = null;
+                editingAgent.QuestionGenModel = null;
+            }
+            else if (string.IsNullOrWhiteSpace(editingAgent.QuestionGenEndpoint) ||
+                     string.IsNullOrWhiteSpace(editingAgent.QuestionGenApiKey) ||
+                     string.IsNullOrWhiteSpace(editingAgent.QuestionGenModel))
+            {
+                errorMsg = "Question Generation Endpoint, API Key, and Model are required when using agent-specific settings.";
+                return;
+            }
+
+            editingAgent.UpdatedAt = DateTime.UtcNow;
+            DbContext.Agents.Update(editingAgent);
+            await DbContext.SaveChangesAsync();
+
+            successMsg = $"Agent '{editingAgent.Name}' updated successfully";
+            showEditModal = false;
+            editingAgent = null;
+            await RefreshAgents();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error saving agent: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteAgent(Guid agentId)
+    {
+        try
+        {
+            var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this agent?");
+            if (!confirmed) return;
+
+            var agent = await DbContext.Agents.FindAsync(agentId);
+            if (agent != null)
+            {
+                DbContext.Agents.Remove(agent);
+                await DbContext.SaveChangesAsync();
+                successMsg = "Agent deleted successfully";
+                await RefreshAgents();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error deleting agent: {ex.Message}";
+        }
+    }
+
+    private string MaskSecret(string? secret)
+    {
+        if (string.IsNullOrEmpty(secret) || secret.Length < 4)
+            return "••••";
+        return $"{secret[..2]}••••{secret[^2..]}";
+    }
+
+    private void ApplyGlobalJudgeToNewAgent()
+    {
+        if (!useGlobalJudgeForNew)
+        {
+            return;
+        }
+
+        newAgent.JudgeEndpoint = globalJudgeEndpoint;
+        newAgent.JudgeApiKey = globalJudgeApiKey;
+        newAgent.JudgeModel = globalJudgeModel;
+    }
+
+    private void ApplyGlobalQuestionGenToNewAgent()
+    {
+        if (!useGlobalQuestionGenForNew)
+        {
+            return;
+        }
+
+        newAgent.QuestionGenEndpoint = null;
+        newAgent.QuestionGenApiKey = null;
+        newAgent.QuestionGenModel = null;
+    }
+
+    private void ApplyGlobalJudgeToEditAgent()
+    {
+        if (!useGlobalJudgeForEdit || editingAgent == null)
+        {
+            return;
+        }
+
+        editingAgent.JudgeEndpoint = globalJudgeEndpoint;
+        editingAgent.JudgeApiKey = globalJudgeApiKey;
+        editingAgent.JudgeModel = globalJudgeModel;
+    }
+
+    private bool IsUsingGlobalJudge(Agent agent)
+    {
+        if (string.IsNullOrWhiteSpace(globalJudgeEndpoint) || string.IsNullOrWhiteSpace(globalJudgeApiKey))
+        {
+            return false;
+        }
+
+        return string.Equals(agent.JudgeEndpoint, globalJudgeEndpoint, StringComparison.OrdinalIgnoreCase)
+               && string.Equals(agent.JudgeApiKey, globalJudgeApiKey, StringComparison.Ordinal)
+               && string.Equals(agent.JudgeModel, globalJudgeModel, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsUsingGlobalQuestionGen(Agent agent)
+    {
+        return string.IsNullOrWhiteSpace(agent.QuestionGenEndpoint)
+               && string.IsNullOrWhiteSpace(agent.QuestionGenApiKey)
+               && string.IsNullOrWhiteSpace(agent.QuestionGenModel);
+    }
+
+    private void OnUseGlobalJudgeForNewChanged(ChangeEventArgs e)
+    {
+        if (bool.TryParse(e.Value?.ToString(), out var useGlobal))
+        {
+            useGlobalJudgeForNew = useGlobal;
+            ApplyGlobalJudgeToNewAgent();
+        }
+    }
+
+    private void OnUseGlobalQuestionGenForNewChanged(ChangeEventArgs e)
+    {
+        if (bool.TryParse(e.Value?.ToString(), out var useGlobal))
+        {
+            useGlobalQuestionGenForNew = useGlobal;
+            ApplyGlobalQuestionGenToNewAgent();
+        }
+    }
+
+    private void OnUseGlobalJudgeForEditChanged(ChangeEventArgs e)
+    {
+        if (bool.TryParse(e.Value?.ToString(), out var useGlobal))
+        {
+            useGlobalJudgeForEdit = useGlobal;
+            ApplyGlobalJudgeToEditAgent();
+        }
+    }
+
+    private void OnUseGlobalQuestionGenForEditChanged(ChangeEventArgs e)
+    {
+        if (bool.TryParse(e.Value?.ToString(), out var useGlobal))
+        {
+            useGlobalQuestionGenForEdit = useGlobal;
+            if (useGlobal && editingAgent != null)
+            {
+                editingAgent.QuestionGenEndpoint = null;
+                editingAgent.QuestionGenApiKey = null;
+                editingAgent.QuestionGenModel = null;
+            }
+        }
+    }
+
+    private class GlobalConfigData
+    {
+        public JudgeConfig? Judge { get; set; }
+        public QuestionGenerationConfig? QuestionGeneration { get; set; }
+    }
+
+    private class JudgeConfig
+    {
+        public string Endpoint { get; set; } = "";
+        public string Key { get; set; } = "";
+        public string Model { get; set; } = "";
+    }
+
+    private class QuestionGenerationConfig
+    {
+        public string Endpoint { get; set; } = "";
+        public string Key { get; set; } = "";
+        public string Model { get; set; } = "";
+    }
+}

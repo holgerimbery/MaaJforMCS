@@ -18,4 +18,8 @@ public class StartRunRequest
     public Guid SuiteId { get; set; }
     public List<Guid>? SelectedTestCaseIds { get; set; }
     public Dictionary<string, object>? Overrides { get; set; }
+    /// <summary>
+    /// Optional: specific agent IDs to run against. If null, runs against agents linked to the suite.
+    /// </summary>
+    public List<Guid>? AgentIds { get; set; }
 }

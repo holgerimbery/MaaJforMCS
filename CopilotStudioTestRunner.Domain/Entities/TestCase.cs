@@ -33,4 +33,5 @@ public class TestCase
     public TestSuite? Suite { get; set; }
     public Document? SourceDocument { get; set; }
     public ICollection<Result> Results { get; set; } = [];
+    public ICollection<TestCaseDocument> TestCaseDocuments { get; set; } = [];
 }

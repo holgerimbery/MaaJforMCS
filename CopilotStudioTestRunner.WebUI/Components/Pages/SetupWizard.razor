@@ -18,6 +18,7 @@
 @inject IJudgeService JudgeService
 @inject IQuestionGenerationService QuestionGenerationService
 @inject IDocumentIngestor DocumentIngestor
+@inject IDocumentChunker DocumentChunker
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 
@@ -79,11 +80,17 @@
         {
             <form>
                 <div style="max-width: 600px;">
-                    <h4 style="color: #0d47a1; margin-bottom: 10px;"><i class="bi bi-gear-fill"></i> Configuration Setup</h4>
-                    <p style="color: #666; margin-bottom: 30px;">Configure your bot and AI evaluation service to get started</p>
+                    <h4 style="color: #0d47a1; margin-bottom: 10px;"><i class="bi bi-gear-fill"></i> Agent Configuration</h4>
+                    <p style="color: #666; margin-bottom: 30px;">Create an agent-specific configuration and choose which global settings to reuse</p>
 
                     <div class="mb-4">
                         <h6 style="color: #0d47a1; margin-bottom: 15px;"><i class="bi bi-robot"></i> Copilot Studio Agent</h6>
+
+                        <div class="mb-3">
+                            <label class="form-label" style="font-weight: 500;">Agent Name <span style="color: red;">*</span></label>
+                            <input type="text" class="form-control" @bind="agentName" autocomplete="off" placeholder="e.g., Support Bot - Prod" />
+                            <small class="form-text text-muted">A descriptive name for this agent configuration</small>
+                        </div>
                         
                         <div class="mb-3">
                             <label class="form-label" style="font-weight: 500;">Bot ID <span style="color: red;">*</span></label>
@@ -124,22 +131,30 @@
 
                     <div class="mb-4">
                         <h6 style="color: #0d47a1; margin-bottom: 15px;"><i class="bi bi-cpu"></i> AI Judge Settings</h6>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="useGlobalJudge" checked="@useGlobalJudgeSettings" @onchange="OnUseGlobalJudgeSettingsChanged" />
+                            <label class="form-check-label" for="useGlobalJudge">Use global Judge settings</label>
+                            <div style="color: #5f6368; font-size: 12px; margin-top: 4px;">
+                                Global Judge: @globalJudgeModel (@(string.IsNullOrWhiteSpace(globalJudgeEndpoint) ? "not configured" : "configured"))
+                            </div>
+                        </div>
                         
                         <div class="mb-3">
                             <label class="form-label" style="font-weight: 500;">Endpoint URL <span style="color: red;">*</span></label>
-                            <input type="url" class="form-control" @bind="judgeEndpoint" autocomplete="off" placeholder="https://your-endpoint.openai.azure.com/" />
+                            <input type="url" class="form-control" @bind="judgeEndpoint" autocomplete="off" placeholder="https://your-endpoint.openai.azure.com/" disabled="@useGlobalJudgeSettings" />
                             <small class="form-text text-muted">Azure OpenAI or AI Foundry endpoint</small>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label" style="font-weight: 500;">API Key <span style="color: red;">*</span></label>
-                            <input type="password" class="form-control" @bind="judgeApiKey" autocomplete="new-password" placeholder="Enter API key" />
+                            <input type="password" class="form-control" @bind="judgeApiKey" autocomplete="new-password" placeholder="Enter API key" disabled="@useGlobalJudgeSettings" />
                             <small class="form-text text-muted">Your Azure OpenAI API key</small>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label" style="font-weight: 500;">Model Name</label>
-                            <input type="text" class="form-control" @bind="judgeModel" autocomplete="off" placeholder="gpt-4o" />
+                            <input type="text" class="form-control" @bind="judgeModel" autocomplete="off" placeholder="gpt-4o" disabled="@useGlobalJudgeSettings" />
                             <small class="form-text text-muted">Model deployment name (e.g., gpt-4o, gpt-4-turbo)</small>
                         </div>
                     </div>
@@ -162,28 +177,36 @@
 
                         @if (useAIQuestionGeneration)
                         {
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="useGlobalQGen" checked="@useGlobalQuestionGenSettings" @onchange="OnUseGlobalQuestionGenSettingsChanged" />
+                                <label class="form-check-label" for="useGlobalQGen">Use global question generation settings</label>
+                                <div style="color: #5f6368; font-size: 12px; margin-top: 4px;">
+                                    Global QGen: @globalQuestionGenModel (@(string.IsNullOrWhiteSpace(globalQuestionGenEndpoint) ? "not configured" : "configured"))
+                                </div>
+                            </div>
+
                             <div class="alert alert-warning" style="border-left: 4px solid #ff9800;">
                                 <i class="bi bi-info-circle"></i> <strong>Tip:</strong> You can use the same Azure OpenAI endpoint as your Judge settings above, or configure a separate instance.
                             </div>
 
                             <div class="mb-3">
                                 <label class="form-label" style="font-weight: 500;">Azure OpenAI Endpoint <span style="color: red;">*</span></label>
-                                <input type="text" class="form-control" @bind="questionGenEndpoint" placeholder="https://your-resource.openai.azure.com" />
+                                <input type="text" class="form-control" @bind="questionGenEndpoint" placeholder="https://your-resource.openai.azure.com" disabled="@useGlobalQuestionGenSettings" />
                                 <small class="form-text text-muted">Your Azure OpenAI service endpoint</small>
                             </div>
 
                             <div class="mb-3">
                                 <label class="form-label" style="font-weight: 500;">API Key <span style="color: red;">*</span></label>
-                                <input type="password" class="form-control" @bind="questionGenApiKey" autocomplete="new-password" placeholder="Enter API key" />
+                                <input type="password" class="form-control" @bind="questionGenApiKey" autocomplete="new-password" placeholder="Enter API key" disabled="@useGlobalQuestionGenSettings" />
                             </div>
 
                             <div class="mb-3">
                                 <label class="form-label" style="font-weight: 500;">Deployment/Model Name</label>
-                                <input type="text" class="form-control" @bind="questionGenModel" placeholder="gpt-4o-mini" />
+                                <input type="text" class="form-control" @bind="questionGenModel" placeholder="gpt-4o-mini" disabled="@useGlobalQuestionGenSettings" />
                                 <small class="form-text text-muted">Your Azure OpenAI deployment name (gpt-4o-mini recommended for cost)</small>
                             </div>
 
-                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="CopyJudgeSettings">
+                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="CopyJudgeSettings" disabled="@useGlobalQuestionGenSettings">
                                 <i class="bi bi-clipboard"></i> Copy from Judge Settings
                             </button>
                         }
@@ -255,17 +278,32 @@
     private string? errorMessage;
     private string? successMessage;
 
-    // Step 1: Configuration
+    // Step 1: Agent Configuration
+    private string agentName = "";
     private string botId = "";
     private string directLineSecret = "";
     private bool useWebChannelSecret = false;
+    private bool useGlobalJudgeSettings = true;
+    private bool useGlobalQuestionGenSettings = true;
     private string judgeEndpoint = "";
     private string judgeApiKey = "";
     private string judgeModel = "gpt-4o";
+    private double judgeTemp = 0.2;
+    private double judgeTopP = 0.9;
+    private double judgePassThreshold = 0.7;
     private bool useAIQuestionGeneration = true;
     private string questionGenEndpoint = "";
     private string questionGenApiKey = "";
     private string questionGenModel = "gpt-4o-mini";
+    private string globalJudgeEndpoint = "";
+    private string globalJudgeApiKey = "";
+    private string globalJudgeModel = "gpt-4o-mini";
+    private double globalJudgeTemp = 0.2;
+    private double globalJudgeTopP = 0.9;
+    private double globalJudgePassThreshold = 0.7;
+    private string globalQuestionGenEndpoint = "";
+    private string globalQuestionGenApiKey = "";
+    private string globalQuestionGenModel = "gpt-4o-mini";
     private const string CONFIG_FILE = "./data/settings.json";
 
     // Step 2: Documents
@@ -278,11 +316,16 @@
     private string customQuestion = "";
     private string customExpectedAnswer = "";
     private int questionCount = 10;
+    private HashSet<Guid> selectedDocumentIds = new();
 
     // Step 4: Agent Selection
     private string testSuiteName = "";
     private string testSuiteDescription = "";
     private Guid? createdSuiteId;
+    private Guid? createdAgentId;
+    private List<Agent> existingAgents = new();
+    private Guid? selectedAgentId;
+    private bool useNewAgent = true;
 
     // Step 5: Results
     private Run? executedRun;
@@ -292,6 +335,7 @@
     {
         await CheckExistingConfiguration();
         await LoadDocuments();
+        await LoadExistingAgents();
     }
 
     private string GetStepTitle(int step)
@@ -301,7 +345,7 @@
             1 => "Configure",
             2 => "Upload Docs",
             3 => "Generate Questions",
-            4 => "Select Agent",
+            4 => "Agent & Suite",
             5 => "Run & Results",
             _ => ""
         };
@@ -315,44 +359,22 @@
             {
                 var json = await File.ReadAllTextAsync(CONFIG_FILE);
                 var config = JsonSerializer.Deserialize<ConfigData>(json);
-                
-                if (config?.DirectLine != null)
-                {
-                    botId = config.DirectLine.BotId;
-                    directLineSecret = config.DirectLine.Secret;
-                    useWebChannelSecret = config.DirectLine.UseWebChannelSecret;
-                }
-                
+
                 if (config?.Judge != null && !string.IsNullOrWhiteSpace(config.Judge.Endpoint))
                 {
-                    judgeEndpoint = config.Judge.Endpoint;
-                    judgeApiKey = config.Judge.Key;
-                    judgeModel = config.Judge.Model ?? "gpt-4o";
-
-                    if (string.IsNullOrWhiteSpace(questionGenEndpoint))
-                    {
-                        questionGenEndpoint = judgeEndpoint;
-                    }
-
-                    if (string.IsNullOrWhiteSpace(questionGenApiKey))
-                    {
-                        questionGenApiKey = judgeApiKey;
-                    }
-
-                    if (string.IsNullOrWhiteSpace(questionGenModel))
-                    {
-                        questionGenModel = judgeModel;
-                    }
+                    globalJudgeEndpoint = config.Judge.Endpoint;
+                    globalJudgeApiKey = config.Judge.Key;
+                    globalJudgeModel = config.Judge.Model ?? "gpt-4o-mini";
+                    globalJudgeTemp = config.Judge.Temperature;
+                    globalJudgeTopP = config.Judge.TopP;
+                    globalJudgePassThreshold = config.Judge.PassThreshold;
                 }
 
-                // If config exists and is complete, skip to step 2
-                var hasBotId = !string.IsNullOrWhiteSpace(botId);
-                var hasSecret = !string.IsNullOrWhiteSpace(directLineSecret);
-                var hasJudge = !string.IsNullOrWhiteSpace(judgeEndpoint) && !string.IsNullOrWhiteSpace(judgeApiKey);
-
-                if (hasSecret && hasJudge && (useWebChannelSecret || hasBotId))
+                if (config?.QuestionGeneration != null && !string.IsNullOrWhiteSpace(config.QuestionGeneration.Endpoint))
                 {
-                    currentStep = 2;
+                    globalQuestionGenEndpoint = config.QuestionGeneration.Endpoint;
+                    globalQuestionGenApiKey = config.QuestionGeneration.Key;
+                    globalQuestionGenModel = config.QuestionGeneration.Model ?? "gpt-4o-mini";
                 }
             }
         }
@@ -370,6 +392,15 @@
                 .Include(d => d.Chunks)
                 .OrderByDescending(d => d.UploadedAt)
                 .ToListAsync();
+
+            selectedDocumentIds.RemoveWhere(id => !uploadedDocuments.Any(d => d.Id == id));
+            if (selectedDocumentIds.Count == 0 && uploadedDocuments.Count > 0)
+            {
+                foreach (var doc in uploadedDocuments)
+                {
+                    selectedDocumentIds.Add(doc.Id);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -377,16 +408,37 @@
         }
     }
 
+    private async Task LoadExistingAgents()
+    {
+        try
+        {
+            existingAgents = await DbContext.Agents
+                .Where(a => a.IsActive)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading agents: {ex.Message}");
+        }
+    }
+
     private bool CanProceedToNextStep()
     {
         return currentStep switch
         {
-              1 => !string.IsNullOrWhiteSpace(directLineSecret) &&
+              1 => !string.IsNullOrWhiteSpace(agentName) &&
+                  !string.IsNullOrWhiteSpace(directLineSecret) &&
                   (useWebChannelSecret || !string.IsNullOrWhiteSpace(botId)) &&
-                  !string.IsNullOrWhiteSpace(judgeEndpoint) && !string.IsNullOrWhiteSpace(judgeApiKey),
-            2 => uploadedDocuments.Count > 0,
+                  (useGlobalJudgeSettings
+                      ? !string.IsNullOrWhiteSpace(globalJudgeEndpoint) && !string.IsNullOrWhiteSpace(globalJudgeApiKey)
+                      : !string.IsNullOrWhiteSpace(judgeEndpoint) && !string.IsNullOrWhiteSpace(judgeApiKey)) &&
+                  (useGlobalQuestionGenSettings
+                      ? !string.IsNullOrWhiteSpace(globalQuestionGenEndpoint) && !string.IsNullOrWhiteSpace(globalQuestionGenApiKey)
+                      : !string.IsNullOrWhiteSpace(questionGenEndpoint) && !string.IsNullOrWhiteSpace(questionGenApiKey)),
+            2 => uploadedDocuments.Count > 0 && selectedDocumentIds.Count > 0,
             3 => generatedQuestions.Count > 0 && selectedQuestions.Any(s => s),
-            4 => !string.IsNullOrWhiteSpace(testSuiteName),
+            4 => !string.IsNullOrWhiteSpace(testSuiteName) && (useNewAgent || selectedAgentId.HasValue),
             _ => true
         };
     }
@@ -403,17 +455,13 @@
                 1 => "Please fill in all configuration fields",
                 2 => "Please upload at least one document",
                 3 => "Please select at least one question",
-                4 => "Please enter a test suite name",
+                4 => "Please enter a test suite name and select an agent",
                 _ => "Cannot proceed to next step"
             };
             return;
         }
 
-        if (currentStep == 1)
-        {
-            await SaveConfiguration();
-        }
-        else if (currentStep == 4)
+        if (currentStep == 4)
         {
             await CreateTestSuite();
             if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -437,6 +485,22 @@
         successMessage = null;
         isTestingConnection = true;
 
+        if (string.IsNullOrWhiteSpace(directLineSecret))
+        {
+            errorMessage = "Direct Line Secret is required to test the connection.";
+            isTestingConnection = false;
+            return;
+        }
+
+        if (!useWebChannelSecret && string.IsNullOrWhiteSpace(botId))
+        {
+            errorMessage = "Direct Line Bot ID is required unless using Web Channel Secret.";
+            isTestingConnection = false;
+            return;
+        }
+
+        Console.WriteLine($"[SetupWizard] Testing connection. UseWebChannelSecret={useWebChannelSecret}, BotId={(string.IsNullOrWhiteSpace(botId) ? "<empty>" : "<set>")}, Timeout=30s");
+
         try
         {
             var dlClient = new DirectLineClient(
@@ -452,14 +516,22 @@
                 throw new InvalidOperationException("Failed to obtain conversation ID from agent");
             }
 
+            Console.WriteLine($"[SetupWizard] Conversation started: {conversationId}");
+
             // Send test message
             await dlClient.SendActivityAsync(conversationId, "Hello");
+            Console.WriteLine($"[SetupWizard] Test message sent");
 
-            // Wait for response
-            var response = await dlClient.GetActivitiesAsync(conversationId);
-            var responseActivities = response.activities
+            // Poll for response with timeout
+            var (activities, watermark) = await dlClient.StreamActivitiesWebSocketAsync(
+                conversationId,
+                _ => Task.CompletedTask);
+
+            var responseActivities = activities
                 .Where(a => a.Type == "message" && a.From?.Id != "user")
                 .ToList();
+
+            Console.WriteLine($"[SetupWizard] Retrieved {responseActivities.Count} bot message(s). Watermark='{watermark}'.");
 
             if (responseActivities.Count == 0)
             {
@@ -467,10 +539,12 @@
             }
 
             successMessage = $"✓ Connection successful! Agent responded.";
+            Console.WriteLine("[SetupWizard] Connection test succeeded.");
         }
         catch (Exception ex)
         {
             errorMessage = $"Connection test failed: {ex.Message}";
+            Console.WriteLine($"[SetupWizard] Connection test failed: {ex.Message}");
         }
         finally
         {
@@ -485,49 +559,6 @@
             currentStep--;
             errorMessage = null;
             successMessage = null;
-        }
-    }
-
-    // STEP 2: Document Upload
-    private async Task SaveConfiguration()
-    {
-        try
-        {
-            var configData = new ConfigData
-            {
-                DirectLine = new DirectLineConfig
-                {
-                    BotId = botId,
-                    Secret = directLineSecret,
-                    UseWebChannelSecret = useWebChannelSecret,
-                    Timeout = 30,
-                    UseWebSocket = true
-                },
-                Judge = new JudgeConfig
-                {
-                    Endpoint = judgeEndpoint,
-                    Key = judgeApiKey,
-                    Model = judgeModel,
-                    Temperature = 0.2,
-                    TopP = 0.9,
-                    PassThreshold = 0.7
-                }
-            };
-
-            var configDir = Path.GetDirectoryName(CONFIG_FILE);
-            if (!string.IsNullOrEmpty(configDir))
-            {
-                Directory.CreateDirectory(configDir);
-            }
-
-            var json = JsonSerializer.Serialize(configData, new JsonSerializerOptions { WriteIndented = true });
-            await File.WriteAllTextAsync(CONFIG_FILE, json);
-
-            successMessage = "✓ Configuration saved successfully!";
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Failed to save configuration: {ex.Message}";
         }
     }
 
@@ -567,6 +598,7 @@
                     <table class="table table-hover">
                         <thead style="position: sticky; top: 0; background-color: white;">
                             <tr>
+                                <th></th>
                                 <th><i class="bi bi-file-text"></i> Name</th>
                                 <th>Type</th>
                                 <th>Chunks</th>
@@ -577,6 +609,9 @@
                             @foreach (var doc in uploadedDocuments)
                             {
                                 <tr>
+                                    <td style="width: 36px;">
+                                        <input type="checkbox" class="form-check-input" checked="@selectedDocumentIds.Contains(doc.Id)" @onchange="e => OnDocumentSelectionChanged(doc.Id, e)" />
+                                    </td>
                                     <td style="font-weight: 500;">@doc.Name</td>
                                     <td><span class="badge bg-secondary">@doc.DocumentType</span></td>
                                     <td>@doc.Chunks.Count</td>
@@ -585,6 +620,19 @@
                             }
                         </tbody>
                     </table>
+                </div>
+
+                <div class="mt-3" style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="SelectAllDocuments">
+                        <i class="bi bi-check-all"></i> Select All
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ClearDocumentSelection">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </button>
+                </div>
+
+                <div class="form-text text-muted mt-2">
+                    Selected documents will be used to generate questions and will be linked to test cases.
                 </div>
             }
             else
@@ -613,22 +661,29 @@
                     continue;
                 }
 
-                var tempPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-                await using var stream = file.OpenReadStream(10 * 1024 * 1024);
-                await using var fileStream = File.Create(tempPath);
-                await stream.CopyToAsync(fileStream);
-                fileStream.Close();
-
-                // Process document
+                // Process document - extract text from the upload stream
                 var fileExt = Path.GetExtension(file.Name).ToLower();
                 var docType = fileExt == ".pdf" ? "pdf" : "text";
                 
                 string text;
                 int pageCount;
-                await using (var readStream = File.OpenRead(tempPath))
+                
+                // Copy input stream to memory stream (input stream is not seekable)
+                await using (var uploadStream = file.OpenReadStream(10 * 1024 * 1024))
+                using (var memoryStream = new MemoryStream())
                 {
-                    (text, pageCount) = await DocumentIngestor.ExtractTextAsync(readStream, docType);
+                    await uploadStream.CopyToAsync(memoryStream);
+                    memoryStream.Position = 0; // Reset position to beginning
+                    (text, pageCount) = await DocumentIngestor.ExtractTextAsync(memoryStream, docType);
                 }
+
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    errorMessage = $"Could not extract text from {file.Name}. File may be corrupted or empty.";
+                    continue;
+                }
+
+                Serilog.Log.Information("[SetupWizard] Extracted {Length} characters from {FileName}", text.Length, file.Name);
 
                 var doc = new Document
                 {
@@ -638,31 +693,28 @@
                     ContentHash = Guid.NewGuid().ToString(),
                     UploadedAt = DateTime.UtcNow,
                     FileSizeBytes = file.Size,
-                    StoragePath = tempPath,
+                    StoragePath = null, // No longer storing physical file
                     Chunks = new List<Chunk>()
                 };
                 
-                // Create simple chunks (split by paragraphs)
-                var paragraphs = text.Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries);
-                if (paragraphs.Length <= 1)
+                // Create chunks using DocumentChunker service
+                var chunkData = DocumentChunker.ChunkText(text, new ChunkerOptions { ChunkSize = 1000, OverlapSize = 200 });
+                
+                foreach (var chunk in chunkData)
                 {
-                    paragraphs = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-                }
-                for (int i = 0; i < paragraphs.Length; i++)
-                {
-                    if (string.IsNullOrWhiteSpace(paragraphs[i])) continue;
                     doc.Chunks.Add(new Chunk
                     {
                         Id = Guid.NewGuid(),
                         DocumentId = doc.Id,
-                        Text = paragraphs[i].Trim(),
-                        TokenCount = paragraphs[i].Length / 4,
-                        ChunkIndex = i
+                        Text = chunk.Text,
+                        TokenCount = chunk.TokenEstimate,
+                        ChunkIndex = chunk.Index
                     });
                 }
+
+                Serilog.Log.Information("[SetupWizard] Created {ChunkCount} chunks for {FileName}", doc.Chunks.Count, file.Name);
                 
                 DbContext.Documents.Add(doc);
-                File.Delete(tempPath);
             }
 
             await DbContext.SaveChangesAsync();
@@ -692,6 +744,11 @@
             @if (generatedQuestions.Count == 0)
             {
                 <div style="text-align: center; padding: 40px;">
+                    <div class="mb-4" style="max-width: 520px; margin: 0 auto; text-align: left;">
+                        <label class="form-label" style="font-weight: 500;">Selected Documents</label>
+                        <div class="form-text text-muted">@GetSelectedDocumentSummary()</div>
+                    </div>
+
                     <div class="mb-4">
                         <label class="form-label" style="font-weight: 500;">Number of Questions to Generate</label>
                         <input type="number" class="form-control" @bind="questionCount" min="5" max="50" style="max-width: 200px; margin: 0 auto;" />
@@ -711,7 +768,7 @@
                     </button>
                     
                     <p style="color: #666; margin-top: 15px; font-size: 0.9em;">
-                        Questions will be generated based on content from @uploadedDocuments.Count document(s)
+                        Questions will be generated based on content from @selectedDocumentIds.Count document(s)
                     </p>
                 </div>
             }
@@ -800,20 +857,42 @@
 
     private async Task GenerateQuestionsWithAI()
     {
+        var effectiveEndpoint = useGlobalQuestionGenSettings ? globalQuestionGenEndpoint : questionGenEndpoint;
+        var effectiveApiKey = useGlobalQuestionGenSettings ? globalQuestionGenApiKey : questionGenApiKey;
+        var effectiveModel = useGlobalQuestionGenSettings ? globalQuestionGenModel : questionGenModel;
+
         // Validate configuration
-        if (string.IsNullOrWhiteSpace(questionGenEndpoint) || string.IsNullOrWhiteSpace(questionGenApiKey))
+        if (string.IsNullOrWhiteSpace(effectiveEndpoint) || string.IsNullOrWhiteSpace(effectiveApiKey))
         {
             errorMessage = "Please configure Azure OpenAI endpoint and API key for AI question generation in Step 1.";
             return;
         }
 
+        var documentsForGeneration = GetSelectedDocuments();
+        
+        Serilog.Log.Information("[SetupWizard] Question generation - Selected documents count: {Count}", documentsForGeneration.Count);
+        foreach (var doc in documentsForGeneration)
+        {
+            Serilog.Log.Information("[SetupWizard] Document: {Name}, Chunks: {ChunkCount}", doc.Name, doc.Chunks?.Count ?? 0);
+        }
+
         // Collect document content
         var documentContent = string.Join("\n\n---\n\n", 
-            uploadedDocuments.SelectMany(d => d.Chunks.Select(c => c.Text)));
+            documentsForGeneration.SelectMany(d => d.Chunks.Select(c => c.Text)));
+
+        Serilog.Log.Information("[SetupWizard] Document content length: {Length}", documentContent.Length);
+        if (documentContent.Length > 0)
+        {
+            var preview = documentContent.Length > 300 
+                ? documentContent.Substring(0, 300) 
+                : documentContent;
+            Serilog.Log.Information("[SetupWizard] Document content preview: {Preview}...", preview);
+        }
 
         if (string.IsNullOrWhiteSpace(documentContent))
         {
             errorMessage = "No content found in documents. Please upload documents with text content.";
+            Serilog.Log.Warning("[SetupWizard] No document content available for question generation");
             return;
         }
 
@@ -831,12 +910,22 @@
             Domain = string.IsNullOrWhiteSpace(testSuiteName) ? null : testSuiteName
         };
 
+        Serilog.Log.Information("[SetupWizard] Calling question generation service with {Count} questions, Domain: {Domain}", 
+            request.NumberOfQuestions, request.Domain ?? "(none)");
+
         var aiQuestions = await QuestionGenerationService.GenerateQuestionsAsync(
             request,
-            questionGenEndpoint,
-            questionGenApiKey,
-            questionGenModel
+            effectiveEndpoint,
+            effectiveApiKey,
+            effectiveModel
         );
+
+        Serilog.Log.Information("[SetupWizard] Received {Count} questions from service", aiQuestions.Count);
+        
+        if (aiQuestions.Count > 0)
+        {
+            Serilog.Log.Information("[SetupWizard] Sample question: {Question}", aiQuestions[0].Question);
+        }
 
         if (aiQuestions.Count == 0)
         {
@@ -862,7 +951,7 @@
     private async Task GenerateQuestionsRuleBased()
     {
         // Get all document chunks
-        var allChunks = uploadedDocuments
+        var allChunks = GetSelectedDocuments()
             .SelectMany(d => d.Chunks)
             .OrderBy(c => Guid.NewGuid())
             .Take(Math.Min(50, uploadedDocuments.Sum(d => d.Chunks.Count)))
@@ -926,6 +1015,37 @@
         questionGenApiKey = judgeApiKey;
         questionGenModel = judgeModel;
         successMessage = "✓ Copied Judge settings to Question Generation configuration";
+    }
+
+    private void OnUseGlobalJudgeSettingsChanged(ChangeEventArgs e)
+    {
+        useGlobalJudgeSettings = e.Value is bool value
+            ? value
+            : bool.TryParse(e.Value?.ToString(), out var parsed) && parsed;
+
+        if (!useGlobalJudgeSettings && string.IsNullOrWhiteSpace(judgeEndpoint))
+        {
+            judgeEndpoint = globalJudgeEndpoint;
+            judgeApiKey = globalJudgeApiKey;
+            judgeModel = globalJudgeModel;
+            judgeTemp = globalJudgeTemp;
+            judgeTopP = globalJudgeTopP;
+            judgePassThreshold = globalJudgePassThreshold;
+        }
+    }
+
+    private void OnUseGlobalQuestionGenSettingsChanged(ChangeEventArgs e)
+    {
+        useGlobalQuestionGenSettings = e.Value is bool value
+            ? value
+            : bool.TryParse(e.Value?.ToString(), out var parsed) && parsed;
+
+        if (!useGlobalQuestionGenSettings && string.IsNullOrWhiteSpace(questionGenEndpoint))
+        {
+            questionGenEndpoint = globalQuestionGenEndpoint;
+            questionGenApiKey = globalQuestionGenApiKey;
+            questionGenModel = globalQuestionGenModel;
+        }
     }
 
     private static readonly string[] StopWords =
@@ -1037,32 +1157,100 @@
         }
     }
 
-    // STEP 4: Agent Selection
+    // STEP 4: Agent Selection & Suite Naming
     private RenderFragment RenderAgentSelectionStep() => __builder =>
     {
         <div>
-            <h4 style="color: #0d47a1; margin-bottom: 10px;"><i class="bi bi-robot"></i> Name Your Test Suite</h4>
+            <h4 style="color: #0d47a1; margin-bottom: 10px;"><i class="bi bi-robot"></i> Select Agent & Name Test Suite</h4>
             <p style="color: #666; margin-bottom: 30px;">
-                Create a test suite with the selected questions to test your agent
+                Choose which agent to test and create a name for this test suite
             </p>
 
             <div class="mb-4">
-                <label class="form-label" style="font-weight: 500;">Test Suite Name <span style="color: red;">*</span></label>
-                <input type="text" class="form-control" @bind="testSuiteName" placeholder="E.g., Product Knowledge Test" />
-                <small class="form-text text-muted">A descriptive name for this test suite</small>
+                <h6 style="color: #0d47a1; margin-bottom: 15px;"><i class="bi bi-robot"></i> Agent Selection</h6>
+
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="radio" id="newAgent" value="new" @onchange="@((ChangeEventArgs e) => OnAgentModeChanged(e))" checked="@useNewAgent" />
+                    <label class="form-check-label" for="newAgent">
+                        <strong>Create New Agent</strong>
+                        <div style="color: #5f6368; font-size: 12px; margin-top: 4px;">
+                            Use the agent configuration from Step 1 (Name: @(string.IsNullOrWhiteSpace(agentName) ? "[Not configured]" : agentName))
+                        </div>
+                    </label>
+                </div>
+
+                @if (existingAgents.Count > 0)
+                {
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" id="existingAgent" value="existing" @onchange="@((ChangeEventArgs e) => OnAgentModeChanged(e))" checked="@(!useNewAgent)" />
+                        <label class="form-check-label" for="existingAgent">
+                            <strong>Use Existing Agent</strong>
+                            <div style="color: #5f6368; font-size: 12px; margin-top: 4px;">
+                                Select an agent you've already configured
+                            </div>
+                        </label>
+                    </div>
+
+                    @if (!useNewAgent)
+                    {
+                        <div style="margin-left: 30px; margin-bottom: 20px;">
+                            <select class="form-select" @onchange="OnExistingAgentSelected">
+                                <option value="">-- Select an agent --</option>
+                                @foreach (var agent in existingAgents)
+                                {
+                                    <option value="@agent.Id">@agent.Name</option>
+                                }
+                            </select>
+                            @if (selectedAgentId.HasValue)
+                            {
+                                var selectedAgent = existingAgents.First(a => a.Id == selectedAgentId);
+                                <div style="margin-top: 10px; padding: 10px; background-color: #e3f2fd; border-radius: 4px; border-left: 4px solid #0d47a1;">
+                                    <small style="color: #0d47a1;">
+                                        <strong>Selected:</strong> @selectedAgent.Name<br />
+                                        <strong>Environment:</strong> @selectedAgent.Environment<br />
+                                        <strong>Judge:</strong> @selectedAgent.JudgeModel
+                                    </small>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+
+                @if (useNewAgent)
+                {
+                    <div style="padding: 15px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #0d47a1; margin-bottom: 20px;">
+                        <small style="color: #666;">
+                            <i class="bi bi-info-circle"></i> 
+                            A new agent will be created with the configuration from Step 1 and automatically linked to this test suite.
+                        </small>
+                    </div>
+                }
             </div>
 
+            <hr style="margin: 30px 0;" />
+
             <div class="mb-4">
-                <label class="form-label" style="font-weight: 500;">Description</label>
-                <textarea class="form-control" @bind="testSuiteDescription" rows="3" placeholder="Describe what this test suite covers..."></textarea>
+                <h6 style="color: #0d47a1; margin-bottom: 15px;"><i class="bi bi-bookmark"></i> Test Suite Naming</h6>
+
+                <div class="mb-3">
+                    <label class="form-label" style="font-weight: 500;">Test Suite Name <span style="color: red;">*</span></label>
+                    <input type="text" class="form-control" @bind="testSuiteName" placeholder="E.g., Product Knowledge Test" />
+                    <small class="form-text text-muted">A descriptive name for this test suite</small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" style="font-weight: 500;">Description</label>
+                    <textarea class="form-control" @bind="testSuiteDescription" rows="3" placeholder="Describe what this test suite covers..."></textarea>
+                </div>
             </div>
 
             <div class="alert alert-info" style="border-left: 4px solid #0d47a1;">
                 <h6 style="margin-bottom: 10px;"><i class="bi bi-info-circle"></i> Test Suite Summary</h6>
                 <ul style="margin: 0; padding-left: 20px;">
                     <li><strong>Selected Questions:</strong> @selectedQuestions.Count(s => s)</li>
-                    <li><strong>Agent to Test:</strong> @(string.IsNullOrWhiteSpace(botId) ? "Not set" : botId)</li>
-                    <li><strong>Evaluation Model:</strong> @judgeModel</li>
+                    <li><strong>Source Documents:</strong> @GetSelectedDocumentSummary()</li>
+                    <li><strong>Agent:</strong> @(useNewAgent ? agentName : (selectedAgentId.HasValue ? existingAgents.First(a => a.Id == selectedAgentId)?.Name : "Not selected"))</li>
+                    <li><strong>Judge Source:</strong> @(useNewAgent && useGlobalJudgeSettings ? "Global" : useNewAgent ? "Agent-specific" : (selectedAgentId.HasValue ? existingAgents.First(a => a.Id == selectedAgentId)?.JudgeModel : "N/A"))</li>
                 </ul>
             </div>
 
@@ -1070,7 +1258,7 @@
                 <h6 style="margin-bottom: 15px;">What happens next?</h6>
                 <ol style="margin: 0; padding-left: 20px;">
                     <li>A test suite will be created with your selected questions</li>
-                    <li>Each question will be sent to your agent <strong>@botId</strong></li>
+                    <li>Each question will be sent to your agent</li>
                     <li>Responses will be evaluated by AI for accuracy and helpfulness</li>
                     <li>You'll see detailed results with pass/fail verdicts</li>
                 </ol>
@@ -1082,11 +1270,96 @@
     {
         try
         {
+            Agent agent;
+
+            if (useNewAgent)
+            {
+                // Create new agent from Step 1 configuration
+                if (string.IsNullOrWhiteSpace(agentName))
+                {
+                    errorMessage = "Agent name is required.";
+                    return;
+                }
+
+                if (useGlobalJudgeSettings && (string.IsNullOrWhiteSpace(globalJudgeEndpoint) || string.IsNullOrWhiteSpace(globalJudgeApiKey)))
+                {
+                    errorMessage = "Global Judge settings are missing. Configure them in Settings first.";
+                    return;
+                }
+
+                if (useGlobalQuestionGenSettings && (string.IsNullOrWhiteSpace(globalQuestionGenEndpoint) || string.IsNullOrWhiteSpace(globalQuestionGenApiKey)))
+                {
+                    errorMessage = "Global question generation settings are missing. Configure them in Settings first.";
+                    return;
+                }
+
+                var effectiveJudgeEndpoint = useGlobalJudgeSettings ? globalJudgeEndpoint : judgeEndpoint;
+                var effectiveJudgeApiKey = useGlobalJudgeSettings ? globalJudgeApiKey : judgeApiKey;
+                var effectiveJudgeModel = useGlobalJudgeSettings ? globalJudgeModel : judgeModel;
+                var effectiveJudgeTemp = useGlobalJudgeSettings ? globalJudgeTemp : judgeTemp;
+                var effectiveJudgeTopP = useGlobalJudgeSettings ? globalJudgeTopP : judgeTopP;
+                var effectiveJudgeThreshold = useGlobalJudgeSettings ? globalJudgePassThreshold : judgePassThreshold;
+
+                var agentQuestionGenEndpoint = useGlobalQuestionGenSettings ? null : questionGenEndpoint;
+                var agentQuestionGenApiKey = useGlobalQuestionGenSettings ? null : questionGenApiKey;
+                var agentQuestionGenModel = useGlobalQuestionGenSettings ? null : questionGenModel;
+
+                agent = new Agent
+                {
+                    Id = Guid.NewGuid(),
+                    Name = agentName.Trim(),
+                    Description = "Created via Wizard",
+                    Environment = "production",
+                    DirectLineBotId = botId,
+                    DirectLineSecret = directLineSecret,
+                    DirectLineUseWebChannelSecret = useWebChannelSecret,
+                    DirectLineUseWebSocket = true,
+                    DirectLineReplyTimeoutSeconds = 30,
+                    DirectLineMaxRetries = 2,
+                    DirectLineBackoffSeconds = 4,
+                    JudgeEndpoint = effectiveJudgeEndpoint,
+                    JudgeApiKey = effectiveJudgeApiKey,
+                    JudgeModel = effectiveJudgeModel,
+                    JudgeTemperature = effectiveJudgeTemp,
+                    JudgeTopP = effectiveJudgeTopP,
+                    JudgePassThreshold = effectiveJudgeThreshold,
+                    JudgeMaxOutputTokens = 800,
+                    QuestionGenEndpoint = agentQuestionGenEndpoint,
+                    QuestionGenApiKey = agentQuestionGenApiKey,
+                    QuestionGenModel = agentQuestionGenModel,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    CreatedBy = "Wizard"
+                };
+
+                DbContext.Agents.Add(agent);
+                await DbContext.SaveChangesAsync();
+            }
+            else
+            {
+                // Use existing agent
+                if (!selectedAgentId.HasValue)
+                {
+                    errorMessage = "Please select an agent.";
+                    return;
+                }
+
+                agent = await DbContext.Agents.FirstOrDefaultAsync(a => a.Id == selectedAgentId.Value);
+                if (agent == null)
+                {
+                    errorMessage = "Selected agent not found.";
+                    return;
+                }
+            }
+
+            createdAgentId = agent.Id;
+
+            // Create test suite
             var trimmedName = string.IsNullOrWhiteSpace(testSuiteName)
                 ? $"Wizard Suite {DateTime.UtcNow:yyyy-MM-dd HH:mm}"
                 : testSuiteName.Trim();
 
-            // Create test suite
             var suite = new TestSuite
             {
                 Id = Guid.NewGuid(),
@@ -1115,14 +1388,34 @@
                     AcceptanceCriteria = !string.IsNullOrWhiteSpace(question.ExpectedAnswer)
                         ? $"Response should contain information about: {question.ExpectedAnswer}"
                         : "Response should be relevant and helpful",
+                    SourceDocumentId = selectedDocumentIds.Count == 1 ? selectedDocumentIds.First() : null,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+
+                foreach (var documentId in selectedDocumentIds)
+                {
+                    testCase.TestCaseDocuments.Add(new TestCaseDocument
+                    {
+                        TestCaseId = testCase.Id,
+                        DocumentId = documentId,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
 
                 suite.TestCases.Add(testCase);
             }
 
             DbContext.TestSuites.Add(suite);
+            await DbContext.SaveChangesAsync();
+
+            var suiteAgent = new TestSuiteAgent
+            {
+                TestSuiteId = suite.Id,
+                AgentId = agent.Id,
+                CreatedAt = DateTime.UtcNow
+            };
+            DbContext.TestSuiteAgents.Add(suiteAgent);
             await DbContext.SaveChangesAsync();
 
             // Store suite ID for execution
@@ -1135,6 +1428,80 @@
         {
             errorMessage = $"Error creating test suite: {ex.Message}";
         }
+    }
+
+    private List<Document> GetSelectedDocuments()
+    {
+        return uploadedDocuments.Where(d => selectedDocumentIds.Contains(d.Id)).ToList();
+    }
+
+    private void OnAgentModeChanged(ChangeEventArgs e)
+    {
+        var mode = e.Value?.ToString();
+        useNewAgent = mode == "new";
+        if (useNewAgent)
+        {
+            selectedAgentId = null;
+        }
+    }
+
+    private void OnExistingAgentSelected(ChangeEventArgs e)
+    {
+        var agentIdStr = e.Value?.ToString();
+        if (Guid.TryParse(agentIdStr, out var agentId))
+        {
+            selectedAgentId = agentId;
+        }
+        else
+        {
+            selectedAgentId = null;
+        }
+    }
+
+    private void OnDocumentSelectionChanged(Guid documentId, ChangeEventArgs e)
+    {
+        var isSelected = e.Value is bool value
+            ? value
+            : bool.TryParse(e.Value?.ToString(), out var parsed) && parsed;
+
+        if (isSelected)
+        {
+            selectedDocumentIds.Add(documentId);
+        }
+        else
+        {
+            selectedDocumentIds.Remove(documentId);
+        }
+    }
+
+    private void SelectAllDocuments()
+    {
+        selectedDocumentIds.Clear();
+        foreach (var doc in uploadedDocuments)
+        {
+            selectedDocumentIds.Add(doc.Id);
+        }
+    }
+
+    private void ClearDocumentSelection()
+    {
+        selectedDocumentIds.Clear();
+    }
+
+    private string GetSelectedDocumentSummary()
+    {
+        if (selectedDocumentIds.Count == 0)
+        {
+            return "No documents selected";
+        }
+
+        if (selectedDocumentIds.Count == 1)
+        {
+            var docId = selectedDocumentIds.First();
+            return uploadedDocuments.FirstOrDefault(d => d.Id == docId)?.Name ?? "1 document";
+        }
+
+        return $"{selectedDocumentIds.Count} documents";
     }
 
     // STEP 5: Execution & Results
@@ -1241,20 +1608,15 @@
 
         try
         {
-            // Load configuration
-            var json = await File.ReadAllTextAsync(CONFIG_FILE);
-            var config = JsonSerializer.Deserialize<ConfigData>(json);
-
-            if (config?.DirectLine == null || config.Judge == null)
-            {
-                errorMessage = "Configuration error. Please reconfigure.";
-                return;
-            }
-
-            // Get the suite we created
             if (!createdSuiteId.HasValue)
             {
                 errorMessage = "Test suite not found. Please recreate the suite in Step 4.";
+                return;
+            }
+
+            if (!createdAgentId.HasValue)
+            {
+                errorMessage = "No agent available to execute.";
                 return;
             }
 
@@ -1269,32 +1631,41 @@
                 return;
             }
 
+            var agent = await DbContext.Agents.FirstOrDefaultAsync(a => a.Id == createdAgentId.Value);
+            if (agent == null)
+            {
+                errorMessage = "Could not load agent configuration.";
+                return;
+            }
+
             // Create Direct Line client
             var dlClient = new DirectLineClient(
-                config.DirectLine.Secret,
-                config.DirectLine.BotId,
-                config.DirectLine.Timeout,
-                config.DirectLine.UseWebChannelSecret);
+                agent.DirectLineSecret,
+                agent.DirectLineBotId,
+                agent.DirectLineReplyTimeoutSeconds,
+                agent.DirectLineUseWebChannelSecret);
 
             // Create judge settings
             var judgeSettings = new JudgeSetting
             {
-                Endpoint = config.Judge.Endpoint,
-                ApiKey = config.Judge.Key,
-                Model = config.Judge.Model,
-                Temperature = config.Judge.Temperature,
-                TopP = config.Judge.TopP,
-                MaxOutputTokens = 4000,
-                PassThreshold = config.Judge.PassThreshold
+                Endpoint = agent.JudgeEndpoint,
+                ApiKey = agent.JudgeApiKey,
+                Model = agent.JudgeModel,
+                Temperature = agent.JudgeTemperature,
+                TopP = agent.JudgeTopP,
+                MaxOutputTokens = agent.JudgeMaxOutputTokens,
+                PassThreshold = agent.JudgePassThreshold
             };
 
             var dlSettings = new DirectLineSettings
             {
-                Secret = config.DirectLine.Secret,
-                BotId = config.DirectLine.BotId,
-                UseWebChannelSecret = config.DirectLine.UseWebChannelSecret,
-                UseWebSocket = config.DirectLine.UseWebSocket,
-                ReplyTimeoutSeconds = config.DirectLine.Timeout
+                Secret = agent.DirectLineSecret,
+                BotId = agent.DirectLineBotId,
+                UseWebChannelSecret = agent.DirectLineUseWebChannelSecret,
+                UseWebSocket = agent.DirectLineUseWebSocket,
+                ReplyTimeoutSeconds = agent.DirectLineReplyTimeoutSeconds,
+                MaxRetries = agent.DirectLineMaxRetries,
+                BackoffSeconds = agent.DirectLineBackoffSeconds
             };
 
             // Execute test suite
@@ -1304,7 +1675,8 @@
                 dlClient,
                 JudgeService,
                 judgeSettings,
-                dlSettings
+                dlSettings,
+                agentId: agent.Id
             );
 
             // Load results
@@ -1337,26 +1709,25 @@
 
     private class ConfigData
     {
-        public DirectLineConfig? DirectLine { get; set; }
         public JudgeConfig? Judge { get; set; }
-    }
-
-    private class DirectLineConfig
-    {
-        public string BotId { get; set; } = "";
-        public string Secret { get; set; } = "";
-        public bool UseWebChannelSecret { get; set; } = false;
-        public int Timeout { get; set; } = 30;
-        public bool UseWebSocket { get; set; } = true;
+        public QuestionGenerationConfig? QuestionGeneration { get; set; }
     }
 
     private class JudgeConfig
     {
         public string Endpoint { get; set; } = "";
         public string Key { get; set; } = "";
-        public string Model { get; set; } = "gpt-4o";
+        public string Model { get; set; } = "gpt-4o-mini";
         public double Temperature { get; set; } = 0.2;
         public double TopP { get; set; } = 0.9;
         public double PassThreshold { get; set; } = 0.7;
     }
+
+    private class QuestionGenerationConfig
+    {
+        public string Endpoint { get; set; } = "";
+        public string Key { get; set; } = "";
+        public string Model { get; set; } = "gpt-4o-mini";
+    }
+
 }
