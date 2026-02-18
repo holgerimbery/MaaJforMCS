@@ -1,5 +1,6 @@
 @page "/wizard"
 @layout MainLayout
+@attribute [Authorize(Roles = "Admin,Tester")]
 @using CopilotStudioTestRunner.Data
 @using CopilotStudioTestRunner.Domain.Entities
 @using CopilotStudioTestRunner.Domain.Configuration

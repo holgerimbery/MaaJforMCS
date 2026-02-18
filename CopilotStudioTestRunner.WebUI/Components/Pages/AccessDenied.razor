@@ -1,0 +1,14 @@
+@page "/access-denied"
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+
+<div style="display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f5f6f8;">
+    <div style="text-align: center; max-width: 420px; background: #ffffff; padding: 48px 40px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+        <i class="bi bi-shield-lock" style="font-size: 56px; color: #dc3545;"></i>
+        <h2 style="margin: 16px 0 8px; font-size: 22px; font-weight: 700; color: #1f1f23;">Access Denied</h2>
+        <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">You do not have permission to access this resource. Contact your administrator to request the appropriate role assignment.</p>
+        <a href="/" style="display: inline-flex; align-items: center; gap: 6px; background: #0066cc; color: #fff; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+            <i class="bi bi-house-door"></i> Return Home
+        </a>
+    </div>
+</div>

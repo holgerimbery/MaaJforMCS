@@ -1,0 +1,16 @@
+@page "/login"
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+
+<div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);">
+    <div style="background: #ffffff; padding: 48px 40px; border-radius: 12px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.15); max-width: 400px; width: 100%;">
+        <div style="font-size: 36px; color: #ffffff; font-weight: 900; text-align: center; background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%); width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border-radius: 12px; letter-spacing: -1px; margin: 0 auto 20px;">
+            CS
+        </div>
+        <h2 style="margin: 0 0 8px; font-size: 22px; font-weight: 700; color: #1f1f23;">Copilot Studio Test Runner</h2>
+        <p style="color: #666; margin: 0 0 32px; font-size: 14px; line-height: 1.5;">Sign in with your organizational account to continue</p>
+        <a href="/MicrosoftIdentity/Account/SignIn" style="display: inline-flex; align-items: center; gap: 8px; background: #0066cc; color: #fff; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px; transition: background 0.2s;" onmouseover="this.style.background='#0052a3'" onmouseout="this.style.background='#0066cc'">
+            <i class="bi bi-microsoft"></i> Sign in with Microsoft
+        </a>
+    </div>
+</div>

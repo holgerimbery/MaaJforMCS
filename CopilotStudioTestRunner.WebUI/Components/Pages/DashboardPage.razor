@@ -3,6 +3,7 @@
 @using Microsoft.EntityFrameworkCore
 @page "/dashboard"
 @layout MainLayout
+@attribute [Authorize]
 
 <div style="max-width: 1200px;">
     @if (!string.IsNullOrEmpty(errorMessage))

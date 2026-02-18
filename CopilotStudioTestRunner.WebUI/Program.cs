@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CopilotStudioTestRunner.Data;
 using CopilotStudioTestRunner.Domain.Entities;
 using CopilotStudioTestRunner.Domain.Configuration;
@@ -7,8 +8,13 @@ using CopilotStudioTestRunner.Core.Execution;
 using CopilotStudioTestRunner.Core.DocumentProcessing;
 using CopilotStudioTestRunner.Core.Services;
 using CopilotStudioTestRunner.WebUI.Api;
+using CopilotStudioTestRunner.WebUI.Authentication;
 using CopilotStudioTestRunner.WebUI.Components;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.UI;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -69,6 +75,33 @@ builder.Services.AddHttpClient();
 // Add health checks
 builder.Services.AddHealthChecks();
 
+// ── Authentication & Authorization ──────────────────────────────
+var authEnabled = config.GetValue<bool>("Authentication:Enabled", false);
+
+if (authEnabled)
+{
+    builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApp(config.GetSection("AzureAd"));
+
+    builder.Services.AddControllersWithViews()
+        .AddMicrosoftIdentityUI();
+}
+else
+{
+    builder.Services.AddAuthentication(DevelopmentAuthHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, DevelopmentAuthHandler>(
+            DevelopmentAuthHandler.SchemeName, null);
+}
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("TesterOrAbove", policy => policy.RequireRole("Admin", "Tester"));
+    options.AddPolicy("AnyAuthenticated", policy => policy.RequireAuthenticatedUser());
+});
+
+builder.Services.AddCascadingAuthenticationState();
+
 var app = builder.Build();
 
 // Ensure database is migrated and seeded
@@ -91,39 +124,49 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.UseAntiforgery();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous();
+
+// Sign-in / sign-out controller routes (Microsoft.Identity.Web.UI)
+if (authEnabled)
+{
+    app.MapControllers();
+}
 
 // REST API endpoints
 var api = app.MapGroup("/api");
 
 // Test Direct Line connection
-api.MapPost("/test-connection", TestDirectLineConnection);
+api.MapPost("/test-connection", TestDirectLineConnection).RequireAuthorization("TesterOrAbove");
 
-// Test Suites endpoints
-api.MapGet("/testsuites", GetTestSuites);
-api.MapGet("/testsuites/{id}", GetTestSuite);
-api.MapPost("/testsuites", CreateTestSuite);
-api.MapPut("/testsuites/{id}", UpdateTestSuite);
-api.MapDelete("/testsuites/{id}", DeleteTestSuite);
+// Test Suites endpoints — read: any authenticated, write: tester+, delete: admin
+api.MapGet("/testsuites", GetTestSuites).RequireAuthorization("AnyAuthenticated");
+api.MapGet("/testsuites/{id}", GetTestSuite).RequireAuthorization("AnyAuthenticated");
+api.MapPost("/testsuites", CreateTestSuite).RequireAuthorization("TesterOrAbove");
+api.MapPut("/testsuites/{id}", UpdateTestSuite).RequireAuthorization("TesterOrAbove");
+api.MapDelete("/testsuites/{id}", DeleteTestSuite).RequireAuthorization("AdminOnly");
 
 // Runs endpoints
-api.MapGet("/runs", GetRuns);
-api.MapGet("/runs/{id}", GetRun);
-api.MapPost("/runs", StartRun);
-api.MapGet("/runs/{id}/results", GetRunResults);
+api.MapGet("/runs", GetRuns).RequireAuthorization("AnyAuthenticated");
+api.MapGet("/runs/{id}", GetRun).RequireAuthorization("AnyAuthenticated");
+api.MapPost("/runs", StartRun).RequireAuthorization("TesterOrAbove");
+api.MapGet("/runs/{id}/results", GetRunResults).RequireAuthorization("AnyAuthenticated");
 
 // Results endpoint
-api.MapGet("/results/{id}/transcript", GetResultTranscript);
+api.MapGet("/results/{id}/transcript", GetResultTranscript).RequireAuthorization("AnyAuthenticated");
 
 // Documents endpoints
-api.MapGet("/documents", GetDocuments);
-api.MapPost("/documents", UploadDocument);
-api.MapDelete("/documents/{id}", DeleteDocument);
+api.MapGet("/documents", GetDocuments).RequireAuthorization("AnyAuthenticated");
+api.MapPost("/documents", UploadDocument).RequireAuthorization("TesterOrAbove");
+api.MapDelete("/documents/{id}", DeleteDocument).RequireAuthorization("AdminOnly");
 
 // Metrics/Dashboard
-api.MapGet("/metrics/summary", GetMetricsSummary);
+api.MapGet("/metrics/summary", GetMetricsSummary).RequireAuthorization("AnyAuthenticated");
 
 async Task<IResult> GetTestSuites(TestRunnerDbContext db)
 {
@@ -137,7 +180,7 @@ async Task<IResult> GetTestSuite(Guid id, TestRunnerDbContext db)
     return suite == null ? Results.NotFound() : Results.Ok(suite);
 }
 
-async Task<IResult> CreateTestSuite(CreateTestSuiteRequest request, TestRunnerDbContext db)
+async Task<IResult> CreateTestSuite(CreateTestSuiteRequest request, TestRunnerDbContext db, ClaimsPrincipal user)
 {
     var suite = new TestSuite
     {
@@ -146,7 +189,7 @@ async Task<IResult> CreateTestSuite(CreateTestSuiteRequest request, TestRunnerDb
         Description = request.Description ?? "",
         CreatedAt = DateTime.UtcNow,
         UpdatedAt = DateTime.UtcNow,
-        CreatedBy = request.CreatedBy ?? "default"
+        CreatedBy = user.Identity?.Name ?? request.CreatedBy ?? "unknown"
     };
     db.TestSuites.Add(suite);
     await db.SaveChangesAsync();
