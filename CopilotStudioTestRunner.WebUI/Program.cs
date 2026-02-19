@@ -10,6 +10,7 @@ using CopilotStudioTestRunner.Core.Services;
 using CopilotStudioTestRunner.WebUI.Api;
 using CopilotStudioTestRunner.WebUI.Authentication;
 using CopilotStudioTestRunner.WebUI.Components;
+using CopilotStudioTestRunner.WebUI.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.EntityFrameworkCore;
@@ -68,6 +69,7 @@ builder.Services.AddScoped<IAgentConfigurationService, AgentConfigurationService
 builder.Services.AddScoped<IMultiAgentExecutionCoordinator, MultiAgentExecutionCoordinator>();
 builder.Services.AddScoped<IDocumentIngestor, DocumentIngestor>();
 builder.Services.AddScoped<IDocumentChunker, DocumentChunker>();
+builder.Services.AddScoped<IPowerPlatformDiscoveryService, PowerPlatformDiscoveryService>();
 
 // HTTP client
 builder.Services.AddHttpClient();

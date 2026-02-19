@@ -17,6 +17,11 @@ services:
       AZUREAD__TENANTID: "${AZURE_TENANT_ID:-}"
       AZUREAD__CLIENTID: "${AZURE_CLIENT_ID:-}"
       AZUREAD__CLIENTSECRET: "${AZURE_CLIENT_SECRET:-}"
+      # The three AZUREAD/AZURE_ vars above also enable the Discover page
+      # (Environment & Agent Discovery) inside the container — no az login needed.
+      # The service principal needs:
+      #   Power Platform service: user_impersonation (to list environments)
+      #   Dynamics CRM: user_impersonation (to list agents per environment)
       AZUREAD__CALLBACKPATH: "/signin-oidc"
       AZUREAD__SIGNEDOUTCALLBACKPATH: "/signout-callback-oidc"
     volumes:

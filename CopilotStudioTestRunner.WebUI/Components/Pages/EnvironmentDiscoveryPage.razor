@@ -1,0 +1,725 @@
+@page "/discover"
+@layout MainLayout
+@attribute [Authorize]
+@using CopilotStudioTestRunner.Data
+@using CopilotStudioTestRunner.Domain.Entities
+@using CopilotStudioTestRunner.WebUI.Services
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Identity.Web
+
+@inject IPowerPlatformDiscoveryService DiscoveryService
+@inject IConfiguration Configuration
+@inject IServiceProvider ServiceProvider
+@inject TestRunnerDbContext DbContext
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div style="max-width: 1400px;">
+
+    <!-- Page title -->
+    <div style="display: flex; gap: 12px; margin-bottom: 24px; align-items: center;">
+        <div>
+            <h2 style="margin: 0; color: #1f1f23;">
+                <i class="bi bi-compass" style="color: #0066cc; margin-right: 8px;"></i>Discover
+            </h2>
+            <p style="margin: 4px 0 0 0; color: #5f6368; font-size: 14px;">
+                Browse your Power Platform environments and Copilot Studio agents
+            </p>
+        </div>
+    </div>
+
+    <!-- Success / error banners -->
+    @if (!string.IsNullOrEmpty(successMsg))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle"></i> @successMsg
+            <button type="button" class="btn-close" @onclick="() => successMsg = null"></button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(discoveryError))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> @discoveryError
+            <button type="button" class="btn-close" @onclick="() => discoveryError = null"></button>
+        </div>
+    }
+
+
+    <!-- Auth / token card -->
+    <div style="background: #ffffff; border: 1px solid #e8eaed; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+
+        <!-- Mode toggle -->
+        <div style="display: flex; gap: 28px; margin-bottom: 16px;">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="authMode" id="authModeCli"
+                       checked="@_useAzureCli" @onchange="() => { _useAzureCli = true; StateHasChanged(); }" />
+                <label class="form-check-label" for="authModeCli" style="font-size: 14px; font-weight: 600; cursor: pointer;">
+                    <i class="bi bi-terminal" style="color: #0066cc; margin-right: 4px;"></i>Azure CLI
+                    <span style="font-size: 12px; font-weight: 400; color: #5f6368; margin-left: 2px;">(az login &mdash; recommended)</span>
+                </label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="authMode" id="authModeManual"
+                       checked="@(!_useAzureCli)" @onchange="() => { _useAzureCli = false; StateHasChanged(); }" />
+                <label class="form-check-label" for="authModeManual" style="font-size: 14px; font-weight: 600; cursor: pointer;">
+                    <i class="bi bi-key" style="color: #f57c00; margin-right: 4px;"></i>Paste token manually
+                </label>
+            </div>
+        </div>
+
+        @if (_useAzureCli)
+        {
+            <div class="alert alert-info py-2 px-3 mb-3" style="font-size: 13px; border-radius: 8px;">
+                <i class="bi bi-info-circle me-1"></i>
+                Tokens are acquired automatically from your <strong>az login</strong> session &mdash; no copy-pasting required.
+                Agents are loaded automatically when you expand an environment.
+            </div>
+        }
+        else
+        {
+            <p style="color: #5f6368; font-size: 13px; margin-bottom: 8px;">
+                Paste a Power Platform access token below, then click <strong>Discover</strong>. Get one with:
+            </p>
+            <pre style="background: #f5f6f8; border: 1px solid #e8eaed; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #333; margin-bottom: 14px; overflow-x: auto;">az account get-access-token --resource "https://service.powerapps.com/" --query accessToken -o tsv</pre>
+
+            @if (tokenAcquisitionError != null)
+            {
+                <div class="alert alert-warning py-2 px-3 mb-3" style="font-size: 13px;">
+                    <i class="bi bi-exclamation-triangle"></i> @tokenAcquisitionError
+                </div>
+            }
+
+            <div class="mb-3">
+                <textarea class="form-control" @bind="manualAccessToken" @bind:event="oninput" rows="3"
+                          placeholder="Paste your Power Platform access token here…"
+                          style="font-family: monospace; font-size: 11px;"></textarea>
+            </div>
+        }
+
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-primary" @onclick="StartDiscovery" disabled="@isDiscovering" style="min-width: 140px;">
+                @if (isDiscovering)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    <span> Discovering…</span>
+                }
+                else
+                {
+                    <span><i class="bi bi-search"></i> Discover</span>
+                }
+            </button>
+
+            @if (environments != null)
+            {
+                <button class="btn btn-outline-secondary" @onclick="StartDiscovery" disabled="@isDiscovering">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <span style="font-size: 13px; color: #5f6368; margin-left: 4px;">
+                    @environments.Count environment(s) found
+                </span>
+            }
+        </div>
+    </div>
+
+    <!-- Results -->
+    @if (environments != null)
+    {
+        if (!environments.Any())
+        {
+            <div style="background: #f5f6f8; border: 1px dashed #e8eaed; border-radius: 12px; padding: 40px; text-align: center;">
+                <i class="bi bi-inbox" style="font-size: 32px; color: #9aa0a6; margin-bottom: 12px; display: block;"></i>
+                <p style="color: #5f6368; margin: 0;">No Power Platform environments found for your account.</p>
+            </div>
+        }
+        else
+        {
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                @foreach (var env in environments)
+                {
+                    var envState = GetEnvState(env.Id);
+                    var typeBadge = GetEnvTypeBadge(env.EnvironmentType);
+
+                    <div style="background: #ffffff; border: 1px solid #e8eaed; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); overflow: hidden;">
+
+                        <!-- Environment header row -->
+                        <div style="padding: 18px 20px; display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none;"
+                             @onclick="async () => await ToggleEnvironment(env)">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span style="font-weight: 700; font-size: 15px; color: #1f1f23;">
+                                        <i class="bi bi-globe" style="color: #0066cc; margin-right: 4px;"></i>@env.DisplayName
+                                    </span>
+                                    <span style="background: @typeBadge.Bg; color: @typeBadge.Text; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">
+                                        @env.EnvironmentType
+                                    </span>
+                                    @if (env.State != "Ready" && !string.IsNullOrEmpty(env.State))
+                                    {
+                                        <span style="background: #fff3e0; color: #e65100; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">
+                                            @env.State
+                                        </span>
+                                    }
+                                </div>
+                                <div style="margin-top: 3px; font-size: 11px; color: #9aa0a6; word-break: break-all;">
+                                    ID: @env.Id
+                                    @if (!string.IsNullOrEmpty(env.Region)){ <span> &middot; @env.Region</span> }
+                                    @if (!string.IsNullOrEmpty(env.OrgUrl)){ <span> &middot; <a href="@env.OrgUrl" target="_blank" @onclick:stopPropagation="true" style="color: #9aa0a6; text-decoration: underline;">@env.OrgUrl</a></span> }
+                                </div>
+                            </div>
+
+                            <!-- Right-side controls -->
+                            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                                @if (envState.IsLoading)
+                                {
+                                    <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                                }
+                                else if (envState.Agents != null)
+                                {
+                                    <span style="font-size: 13px; color: #5f6368;">
+                                        <i class="bi bi-robot" style="color: #0066cc;"></i> @envState.Agents.Count
+                                    </span>
+                                }
+
+                                @if (string.IsNullOrEmpty(env.OrgUrl))
+                                {
+                                    <span style="font-size: 11px; color: #9aa0a6;" title="No Dataverse instance">
+                                        <i class="bi bi-dash-circle"></i> No Dataverse
+                                    </span>
+                                }
+                                else if (envState.Agents == null && !envState.IsLoading && !string.IsNullOrEmpty(env.OrgUrl))
+                                {
+                                    <button class="btn btn-sm btn-outline-primary" style="font-size: 12px;"
+                                            @onclick:stopPropagation="true"
+                                            @onclick="async () => { GetEnvState(env.Id).IsExpanded = true; await LoadAgents(env); }">
+                                        <i class="bi bi-robot"></i> Load Agents
+                                    </button>
+                                }
+
+                                <i class="bi @(envState.IsExpanded ? "bi-chevron-up" : "bi-chevron-down")"
+                                   style="color: #9aa0a6; font-size: 13px;"></i>
+                            </div>
+                        </div>
+
+                        <!-- Expanded body -->
+                        @if (envState.IsExpanded)
+                        {
+                            <div style="border-top: 1px solid #e8eaed; padding: 16px 20px 20px;">
+
+                                @if (!string.IsNullOrEmpty(envState.Error))
+                                {
+                                    <div class="alert alert-warning py-2 px-3 mb-3" style="font-size: 13px;">
+                                        <i class="bi bi-exclamation-triangle-fill"></i> @envState.Error
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(env.OrgUrl))
+                                    {
+                                        @if (_useAzureCli)
+                                        {
+                                            <button class="btn btn-sm btn-primary mt-2"
+                                                    @onclick="async () => { envState.Error = null; await LoadAgents(env); }">
+                                                <i class="bi bi-arrow-clockwise"></i> Retry
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <div style="background: #f8f9fa; border: 1px solid #e8eaed; border-radius: 8px; padding: 16px; margin-top: 8px;">
+                                                <p style="margin: 0 0 6px 0; font-size: 13px; color: #1f1f23; font-weight: 600;">
+                                                    <i class="bi bi-key" style="color: #f57c00; margin-right: 4px;"></i>Provide a Dataverse token to retry
+                                                </p>
+                                                <pre style="background: #fff; border: 1px solid #e8eaed; border-radius: 6px; padding: 8px 12px; font-size: 11px; color: #333; margin-bottom: 10px; overflow-x: auto; white-space: pre-wrap; word-break: break-all;">az account get-access-token --resource "@env.OrgUrl/" --query accessToken -o tsv</pre>
+                                                <textarea class="form-control form-control-sm" rows="2"
+                                                          @bind="envState.DataverseToken" @bind:event="oninput"
+                                                          placeholder="Paste Dataverse token here…"
+                                                          style="font-family: monospace; font-size: 11px; margin-bottom: 8px;"></textarea>
+                                                <button class="btn btn-sm btn-primary"
+                                                        @onclick="async () => { envState.Error = null; await LoadAgents(env); }"
+                                                        disabled="@(string.IsNullOrWhiteSpace(envState.DataverseToken))">
+                                                    <i class="bi bi-arrow-clockwise"></i> Retry
+                                                </button>
+                                            </div>
+                                        }
+                                    }
+                                }
+                                else if (envState.IsLoading)
+                                {
+                                    <div style="text-align: center; padding: 24px; color: #5f6368;">
+                                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                                        <span style="margin-left: 8px;">Loading agents…</span>
+                                    </div>
+                                }
+                                else if (envState.Agents == null)
+                                {
+                                    @if (string.IsNullOrEmpty(env.OrgUrl))
+                                    {
+                                        <div style="text-align: center; padding: 24px; color: #9aa0a6; font-size: 13px;">
+                                            This environment has no Dataverse instance and cannot host Copilot Studio agents.
+                                        </div>
+                                    }
+                                    else if (_useAzureCli)
+                                    {
+                                        <div style="text-align: center; padding: 16px;">
+                                            <button class="btn btn-sm btn-primary" @onclick="async () => await LoadAgents(env)">
+                                                <i class="bi bi-robot me-1"></i> Load Agents
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <!-- Dataverse token input (manual mode) -->
+                                        <div style="background: #f8f9fa; border: 1px solid #e8eaed; border-radius: 8px; padding: 16px;">
+                                            <p style="margin: 0 0 6px 0; font-size: 13px; color: #1f1f23; font-weight: 600;">
+                                                <i class="bi bi-key" style="color: #f57c00; margin-right: 4px;"></i>Dataverse token required
+                                            </p>
+                                            <p style="margin: 0 0 8px 0; font-size: 12px; color: #5f6368;">
+                                                Listing agents requires a token scoped to this environment's org URL. Get it with:
+                                            </p>
+                                            <pre style="background: #fff; border: 1px solid #e8eaed; border-radius: 6px; padding: 8px 12px; font-size: 11px; color: #333; margin-bottom: 10px; overflow-x: auto; white-space: pre-wrap; word-break: break-all;">az account get-access-token --resource "@env.OrgUrl/" --query accessToken -o tsv</pre>
+                                            <textarea class="form-control form-control-sm" rows="2"
+                                                      @bind="envState.DataverseToken" @bind:event="oninput"
+                                                      placeholder="Paste Dataverse token here…"
+                                                      style="font-family: monospace; font-size: 11px; margin-bottom: 8px;"></textarea>
+                                            <button class="btn btn-sm btn-primary"
+                                                    @onclick="async () => await LoadAgents(env)"
+                                                    disabled="@(string.IsNullOrWhiteSpace(envState.DataverseToken))">
+                                                <i class="bi bi-robot"></i> Load Agents
+                                            </button>
+                                        </div>
+                                    }
+                                }
+                                else if (!envState.Agents.Any())
+                                {
+                                    <div style="text-align: center; padding: 24px; color: #9aa0a6; font-size: 13px;">
+                                        <i class="bi bi-robot" style="font-size: 24px; display: block; margin-bottom: 8px;"></i>
+                                        No Copilot Studio agents found in this environment.
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px;">
+                                        @foreach (var agent in envState.Agents)
+                                        {
+                                            var importState = GetImportState(env.Id, agent.BotId);
+                                            var alreadyImported = importedBotIds.Contains(agent.SchemaName) || importState.IsImported;
+
+                                            <div style="background: #f8f9fa; border: 1px solid #e8eaed; border-radius: 8px; padding: 14px;">
+
+                                                <!-- Agent header -->
+                                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+                                                    <div style="flex: 1; min-width: 0;">
+                                                        <div style="font-weight: 600; color: #1f1f23; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                                            <i class="bi bi-robot" style="color: @(agent.IsActive ? "#0066cc" : "#9aa0a6"); margin-right: 4px;"></i>@agent.Name
+                                                        </div>
+                                                        <div style="font-size: 11px; color: #9aa0a6; font-family: monospace; margin-top: 2px; overflow: hidden; text-overflow: ellipsis;">
+                                                            @agent.SchemaName
+                                                        </div>
+                                                    </div>
+                                                    <span style="background: @(agent.IsActive ? "#e8f5e9" : "#f5f5f5"); color: @(agent.IsActive ? "#2e7d32" : "#9aa0a6"); padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; flex-shrink: 0; margin-left: 8px;">
+                                                        @(agent.IsActive ? "Active" : "Inactive")
+                                                    </span>
+                                                </div>
+
+                                                @if (!string.IsNullOrEmpty(agent.Description))
+                                                {
+                                                    <p style="font-size: 12px; color: #5f6368; margin: 4px 0 8px; font-style: italic; line-height: 1.4;">@agent.Description</p>
+                                                }
+                                                @if (!string.IsNullOrEmpty(agent.Language))
+                                                {
+                                                    <div style="font-size: 11px; color: #9aa0a6; margin-bottom: 8px;">
+                                                        <i class="bi bi-translate" style="margin-right: 3px;"></i>@agent.Language
+                                                    </div>
+                                                }
+
+                                                <!-- Import area -->
+                                                @if (alreadyImported && !importState.ShowForm)
+                                                {
+                                                    <div style="background: #e8f5e9; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #2e7d32;">
+                                                        <i class="bi bi-check-circle-fill"></i> In agent library
+                                                    </div>
+                                                }
+                                                else if (!importState.ShowForm)
+                                                {
+                                                    <button class="btn btn-sm btn-outline-primary" style="font-size: 12px;"
+                                                            @onclick="() => ShowImportForm(env.Id, agent)">
+                                                        <i class="bi bi-download"></i> Import to library
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <!-- Import form -->
+                                                    <div style="background: #fff; border: 1px solid #d0e8ff; border-radius: 8px; padding: 12px; margin-top: 8px;">
+                                                        <div class="mb-2">
+                                                            <label class="form-label" style="font-size: 12px; font-weight: 600; margin-bottom: 3px;">Agent Name</label>
+                                                            <input type="text" class="form-control form-control-sm" @bind="importState.AgentName" />
+                                                        </div>
+                                                        <div class="mb-2">
+                                                            <label class="form-label" style="font-size: 12px; font-weight: 600; margin-bottom: 3px;">
+                                                                Direct Line Secret <span style="color: red;">*</span>
+                                                            </label>
+                                                            <input type="password" class="form-control form-control-sm"
+                                                                   @bind="importState.DirectLineSecret"
+                                                                   placeholder="From Copilot Studio → Channels → Direct Line" />
+                                                        </div>
+                                                        <div class="form-check mb-2">
+                                                            <input type="checkbox" class="form-check-input"
+                                                                   id="@($"wcs_{agent.BotId}")"
+                                                                   @bind="importState.UseWebChannelSecret" />
+                                                            <label class="form-check-label" style="font-size: 12px;" for="@($"wcs_{agent.BotId}")">
+                                                                Use Web Channel Secret
+                                                            </label>
+                                                        </div>
+
+                                                        @if (!string.IsNullOrEmpty(importState.Error))
+                                                        {
+                                                            <div class="alert alert-danger py-1 px-2 mb-2" style="font-size: 12px;">
+                                                                @importState.Error
+                                                            </div>
+                                                        }
+
+                                                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                                            <button class="btn btn-sm btn-primary" style="font-size: 12px;"
+                                                                    @onclick="() => ImportAgent(env, agent)"
+                                                                    disabled="@importState.IsImporting">
+                                                                @if (importState.IsImporting)
+                                                                {
+                                                                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <i class="bi bi-check-circle"></i>
+                                                                }
+                                                                <span> Save to library</span>
+                                                            </button>
+                                                            <button class="btn btn-sm btn-outline-secondary" style="font-size: 12px;"
+                                                                    @onclick="() => CancelImport(env.Id, agent.BotId)">
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    // ── State ───────────────────────────────────────────────────────────────
+    private bool authEnabled;
+    private bool _useAzureCli = true;
+    private string manualAccessToken = "";
+    private string? tokenAcquisitionError;
+    private bool isDiscovering;
+    private string? discoveryError;
+    private string? successMsg;
+    private List<DiscoveredEnvironment>? environments;
+    private string? currentAccessToken;
+
+    private Dictionary<string, EnvironmentState> environmentStates = new();
+    private Dictionary<string, AgentImportState> importStates = new();
+    private HashSet<string> importedBotIds = new(StringComparer.OrdinalIgnoreCase);
+
+    // ── Init ────────────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        authEnabled = Configuration.GetValue<bool>("Authentication:Enabled", false);
+        await LoadImportedBotIdsAsync();
+    }
+
+    private async Task LoadImportedBotIdsAsync()
+    {
+        var ids = await DbContext.Agents.Select(a => a.DirectLineBotId).ToListAsync();
+        importedBotIds = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
+    }
+
+    // ── Discovery ───────────────────────────────────────────────────────────
+    private async Task StartDiscovery()
+    {
+        isDiscovering = true;
+        discoveryError = null;
+        environments = null;
+        environmentStates.Clear();
+        importStates.Clear();
+        StateHasChanged();
+
+        try
+        {
+            if (_useAzureCli)
+            {
+                environments = await DiscoveryService.GetEnvironmentsAsync(PowerPlatformDiscoveryService.CreateDefaultCredential());
+            }
+            else
+            {
+                var token = await AcquireTokenAsync();
+                if (string.IsNullOrEmpty(token))
+                {
+                    discoveryError = "No access token available. Paste a Power Platform token in the box above, then click Discover again.";
+                    return;
+                }
+                currentAccessToken = token;
+                environments = await DiscoveryService.GetEnvironmentsAsync(token);
+            }
+
+            foreach (var env in environments)
+                environmentStates[env.Id] = new EnvironmentState();
+        }
+        catch (CredentialUnavailableException)
+        {
+            discoveryError = "Azure CLI not authenticated. Run 'az login' in a terminal, then try again.";
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            discoveryError = "Authentication failed (401). The token may be expired or lack the " +
+                             "'PowerApps Service → user_impersonation' permission.";
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            discoveryError = "Access denied (403). You may not have Power Platform Admin access.";
+        }
+        catch (Exception ex)
+        {
+            discoveryError = $"Discovery failed: {ex.Message}";
+        }
+        finally
+        {
+            isDiscovering = false;
+        }
+    }
+
+    private async Task<string?> AcquireTokenAsync()
+    {
+        // Prefer manually supplied token
+        if (!string.IsNullOrWhiteSpace(manualAccessToken))
+            return manualAccessToken.Trim();
+
+        if (!authEnabled) return null;
+
+        // Try MSAL (only available when Authentication:Enabled = true)
+        try
+        {
+            var tokenAcquisition = ServiceProvider.GetService<ITokenAcquisition>();
+            if (tokenAcquisition is null) return null;
+
+            return await tokenAcquisition.GetAccessTokenForUserAsync(
+                new[] { "https://service.powerapps.com/user_impersonation" });
+        }
+        catch (MicrosoftIdentityWebChallengeUserException)
+        {
+            tokenAcquisitionError =
+                "Consent required for 'PowerApps Service → user_impersonation'. " +
+                "Ask your Azure AD admin to grant this permission, or paste a token manually.";
+        }
+        catch (Exception ex)
+        {
+            tokenAcquisitionError = $"Could not acquire token automatically: {ex.Message}";
+        }
+
+        return null;
+    }
+
+    // ── Agents ──────────────────────────────────────────────────────────────
+    private async Task ToggleEnvironment(DiscoveredEnvironment env)
+    {
+        var state = GetEnvState(env.Id);
+        state.IsExpanded ^= true;
+        // In Azure CLI mode auto-load agents on expand (no token paste needed)
+        if (_useAzureCli && state.IsExpanded && state.Agents == null && !state.IsLoading && !string.IsNullOrEmpty(env.OrgUrl))
+            await LoadAgents(env);
+    }
+
+    private async Task LoadAgents(DiscoveredEnvironment env)
+    {
+        if (string.IsNullOrEmpty(env.OrgUrl)) return;
+
+        var state = GetEnvState(env.Id);
+        state.IsLoading = true;
+        state.IsExpanded = true;
+        state.Error = null;
+        StateHasChanged();
+
+        try
+        {
+            if (_useAzureCli)
+            {
+                state.Agents = await DiscoveryService.GetAgentsAsync(env.OrgUrl, PowerPlatformDiscoveryService.CreateDefaultCredential());
+            }
+            else
+            {
+                var token = !string.IsNullOrWhiteSpace(state.DataverseToken)
+                    ? state.DataverseToken.Trim()
+                    : currentAccessToken ?? await AcquireTokenAsync();
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    state.Error = "No Dataverse token provided. Expand this environment and paste a token scoped to its org URL.";
+                    return;
+                }
+                state.Agents = await DiscoveryService.GetAgentsAsync(env.OrgUrl, token);
+            }
+        }
+        catch (CredentialUnavailableException)
+        {
+            state.Error = "Azure CLI not authenticated. Run 'az login' in a terminal, then try again.";
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            state.Error =
+                "Access denied (401): Dynamics CRM → user_impersonation permission is required " +
+                "to list agents in this environment.";
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            state.Error =
+                "Not authorized (403): you must be a member of this environment in Power Platform Admin Center.";
+        }
+        catch (Exception ex)
+        {
+            state.Error = $"Failed to load agents: {ex.Message}";
+        }
+        finally
+        {
+            state.IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // ── Import ──────────────────────────────────────────────────────────────
+    private void ShowImportForm(string envId, DiscoveredAgent agent)
+    {
+        var state = GetImportState(envId, agent.BotId);
+        state.AgentName = agent.Name;
+        state.ShowForm = true;
+    }
+
+    private void CancelImport(string envId, string botId)
+    {
+        GetImportState(envId, botId).ShowForm = false;
+    }
+
+    private async Task ImportAgent(DiscoveredEnvironment env, DiscoveredAgent agent)
+    {
+        var state = GetImportState(env.Id, agent.BotId);
+
+        if (string.IsNullOrWhiteSpace(state.DirectLineSecret))
+        {
+            state.Error = "Direct Line Secret is required.";
+            return;
+        }
+
+        state.IsImporting = true;
+        state.Error = null;
+        StateHasChanged();
+
+        try
+        {
+            var newAgent = new Agent
+            {
+                Id = Guid.NewGuid(),
+                Name = string.IsNullOrWhiteSpace(state.AgentName) ? agent.Name : state.AgentName.Trim(),
+                Description = $"Imported from Power Platform environment '{env.DisplayName}'",
+                Environment = MapEnvType(env.EnvironmentType),
+                DirectLineBotId = agent.SchemaName,
+                DirectLineSecret = state.DirectLineSecret,
+                DirectLineUseWebChannelSecret = state.UseWebChannelSecret,
+                DirectLineUseWebSocket = true,
+                DirectLineReplyTimeoutSeconds = 30,
+                DirectLineMaxRetries = 2,
+                DirectLineBackoffSeconds = 4,
+                JudgeModel = "gpt-4o-mini",
+                JudgeTemperature = 0.2,
+                JudgeTopP = 0.9,
+                JudgePassThreshold = 0.7,
+                JudgeMaxOutputTokens = 800,
+                JudgeEndpoint = string.Empty,
+                JudgeApiKey = string.Empty,
+                IsActive = agent.IsActive,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                CreatedBy = "discover"
+            };
+
+            DbContext.Agents.Add(newAgent);
+            await DbContext.SaveChangesAsync();
+
+            importedBotIds.Add(agent.SchemaName);
+            state.IsImported = true;
+            state.ShowForm = false;
+            successMsg = $"'{newAgent.Name}' imported. Complete the Judge configuration on the Agents page.";
+        }
+        catch (Exception ex)
+        {
+            state.Error = $"Import failed: {ex.Message}";
+        }
+        finally
+        {
+            state.IsImporting = false;
+        }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+    private EnvironmentState GetEnvState(string envId)
+    {
+        if (!environmentStates.TryGetValue(envId, out var s))
+        {
+            s = new EnvironmentState();
+            environmentStates[envId] = s;
+        }
+        return s;
+    }
+
+    private AgentImportState GetImportState(string envId, string botId)
+    {
+        var key = $"{envId}:{botId}";
+        if (!importStates.TryGetValue(key, out var s))
+        {
+            s = new AgentImportState();
+            importStates[key] = s;
+        }
+        return s;
+    }
+
+    private static string MapEnvType(string envSku) => envSku.ToLowerInvariant() switch
+    {
+        "production" => "production",
+        "sandbox"    => "staging",
+        "developer"  => "dev",
+        "trial"      => "test",
+        _            => "production"
+    };
+
+    private static (string Bg, string Text) GetEnvTypeBadge(string envType) => envType.ToLowerInvariant() switch
+    {
+        "production" => ("#e8f0ff", "#0066cc"),
+        "sandbox"    => ("#fff8e1", "#f57f17"),
+        "developer"  => ("#e8f5e9", "#2e7d32"),
+        "trial"      => ("#fce4ec", "#c62828"),
+        "default"    => ("#e8f0ff", "#0066cc"),
+        "teams"      => ("#ede7f6", "#4527a0"),
+        _            => ("#f5f5f5", "#616161")
+    };
+
+    // ── Inner state classes ─────────────────────────────────────────────────
+    private sealed class EnvironmentState
+    {
+        public bool IsExpanded { get; set; }
+        public bool IsLoading { get; set; }
+        public List<DiscoveredAgent>? Agents { get; set; }
+        public string? Error { get; set; }
+        public string DataverseToken { get; set; } = "";
+    }
+
+    private sealed class AgentImportState
+    {
+        public bool ShowForm { get; set; }
+        public string AgentName { get; set; } = "";
+        public string DirectLineSecret { get; set; } = "";
+        public bool UseWebChannelSecret { get; set; }
+        public bool IsImporting { get; set; }
+        public bool IsImported { get; set; }
+        public string? Error { get; set; }
+    }
+}

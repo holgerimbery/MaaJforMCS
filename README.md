@@ -12,6 +12,7 @@ Test multiple agents simultaneously across environments, evaluate responses with
 ## Key Features
 
 - **Multi-Agent Testing** — run the same test suite against dev, staging, and production agents in parallel
+- **Environment & Agent Discovery** — browse all Power Platform environments and import Copilot Studio agents automatically via Azure CLI or service principal
 - **Direct Line Integration** — WebSocket or polling transport with full conversation lifecycle management
 - **Model-as-a-Judge Evaluation** — Azure AI Foundry LLM scores responses on 5 dimensions (task success, intent match, factuality, helpfulness, safety)
 - **Document-Driven Test Generation** — upload PDFs or text files and let AI generate test cases automatically
@@ -89,6 +90,7 @@ Full details including Kubernetes deployment in [Docker Deployment](./docs/wiki/
 | Getting Started | [Getting-Started](./docs/wiki/Getting-Started.md) |
 | Quick Start (5 min) | [Quick-Start](./docs/wiki/Quick-Start.md) |
 | Setup Wizard | [Setup-Wizard](./docs/wiki/Setup-Wizard.md) |
+| Environment & Agent Discovery | [Environment-Discovery](./docs/wiki/Environment-Discovery.md) |
 | Multi-Agent Testing | [Multi-Agent-Testing](./docs/wiki/Multi-Agent-Testing.md) |
 | Architecture | [Architecture](./docs/wiki/Architecture.md) |
 | Configuration Reference | [Configuration-Reference](./docs/wiki/Configuration-Reference.md) |
