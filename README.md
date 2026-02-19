@@ -1,6 +1,6 @@
 ![version](https://img.shields.io/github/v/release/holgerimbery/MaaJforMCS)
 
-# Copilot Studio Test Runner
+# Copilot Studio Test Runner - Multi‑Agent Assessment & Judgement
 
 An enterprise-grade, **multi-agent aware** .NET 9 application for automated testing of Microsoft Copilot Studio agents.
 Test multiple agents simultaneously across environments, evaluate responses with Azure AI Foundry models, generate test cases from documents, and gain comprehensive quality metrics.
