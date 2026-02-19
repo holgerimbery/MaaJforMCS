@@ -5,8 +5,6 @@
 An enterprise-grade, **multi-agent aware** .NET 9 application for automated testing of Microsoft Copilot Studio agents.
 Test multiple agents simultaneously across environments, evaluate responses with Azure AI Foundry models, generate test cases from documents, and gain comprehensive quality metrics.
 
-> VERSION: 0.4.0
-
 > **Full documentation is available in the [Wiki](https://github.com/holgerimbery/MaaJforMCS/wiki).**
 
 ---
