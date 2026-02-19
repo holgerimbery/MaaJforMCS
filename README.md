@@ -1,3 +1,5 @@
+![version](https://img.shields.io/github/v/release/holgerimbery/MaaJforMCS)
+
 # Copilot Studio Test Runner
 
 An enterprise-grade, **multi-agent aware** .NET 9 application for automated testing of Microsoft Copilot Studio agents.
