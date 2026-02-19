@@ -1,0 +1,11 @@
+# This file is kept for reference only.
+#
+# Authentication is now controlled entirely via the .env file:
+#
+#   AUTHENTICATION_ENABLED=true
+#   AZURE_TENANT_ID=your-tenant-id
+#   AZURE_CLIENT_ID=your-client-id
+#   AZURE_CLIENT_SECRET=your-client-secret
+#
+# A single 'docker compose up -d' is all that is needed — no override file required.
+

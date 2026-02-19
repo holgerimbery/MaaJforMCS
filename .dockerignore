@@ -1,0 +1,40 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Runtime data (never bake into image)
+data/
+logs/
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets
+.env
+.env.local
+**/appsettings.Development.json
+**/appsettings.json
+!**/appsettings.template.json
+
+# Test results
+**/TestResults/
+coverage/
+
+# Misc
+**/*.user
+**/*.suo
+*.tmp
+*.bak
+doc-wip/
+.wiki/
+assets/
+docs/
+README.md
