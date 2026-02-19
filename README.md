@@ -5,7 +5,7 @@ Test multiple agents simultaneously across environments, evaluate responses with
 
 > VERSION: 0.4.0
 
-> **Full documentation is available in the [Wiki](./docs/wiki/Home.md).**
+> **Full documentation is available in the [Wiki](https://github.com/holgerimbery/MaaJforMCS/wiki).**
 
 ---
 
