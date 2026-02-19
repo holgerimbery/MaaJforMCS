@@ -301,6 +301,129 @@ If upgrading from a previous version:
 3. Global Judge settings are preserved and can be overridden per agent
 4. No breaking changes to existing APIs (agents are optional parameters)
 
+## Authentication
+
+The application ships with authentication **disabled by default** so it runs out of the box locally. When deployed for team use, enable Microsoft Entra ID (Azure AD) sign-in to protect all pages and API endpoints with role-based access control.
+
+Three roles are defined:
+
+| Role | Access |
+|------|--------|
+| **Admin** | Full access — settings, agents, delete operations |
+| **Tester** | Create/run test suites, upload documents, view results |
+| **Viewer** | Read-only access to dashboards and results |
+
+### Step 1 — Create an Entra ID App Registration
+
+1. Sign in to the [Microsoft Entra admin center](https://entra.microsoft.com).
+2. Navigate to **Identity → Applications → App registrations → + New registration**.
+3. Enter the following:
+
+   | Field | Value |
+   |-------|-------|
+   | Name | `CopilotStudioTestRunner` |
+   | Supported account types | *Accounts in this organizational directory only* |
+   | Redirect URI | Platform: **Web** — URI: `https://localhost:7037/signin-oidc` |
+
+4. Click **Register**.
+
+### Step 2 — Copy the IDs
+
+From the **Overview** page, note down:
+
+| Value | Used as |
+|-------|---------|
+| **Application (client) ID** | `AZUREAD__CLIENTID` |
+| **Directory (tenant) ID** | `AZUREAD__TENANTID` |
+
+### Step 3 — Create a Client Secret
+
+1. Go to **Certificates & secrets → Client secrets → + New client secret**.
+2. Enter a description and choose an expiry (12 or 24 months recommended).
+3. Click **Add** and **copy the secret value immediately** — it is shown only once.
+4. This value becomes `AZUREAD__CLIENTSECRET`.
+
+### Step 4 — Configure Authentication Settings
+
+1. Go to **Authentication**.
+2. Under **Redirect URIs**, add all URIs relevant to your deployment:
+
+   | Environment | Redirect URI |
+   |-------------|--------------|
+   | Local HTTPS | `https://localhost:7037/signin-oidc` |
+   | Local HTTP | `http://localhost:5062/signin-oidc` |
+   | Production | `https://<your-production-host>/signin-oidc` |
+
+3. Set **Front-channel logout URL** to `https://localhost:7037/signout-oidc` (adjust for production).
+4. Under **Implicit grant and hybrid flows**, enable ✅ **ID tokens** and ✅ **Access tokens**.
+5. Click **Save**.
+
+### Step 5 — Create App Roles
+
+1. Go to **App roles → + Create app role** and create all three roles:
+
+   | Display name | Value (exact) | Allowed member types |
+   |---|---|---|
+   | Admin | `Admin` | Users/Groups |
+   | Tester | `Tester` | Users/Groups |
+   | Viewer | `Viewer` | Users/Groups |
+
+### Step 6 — Assign Users to Roles
+
+1. Go to **Identity → Applications → Enterprise applications → CopilotStudioTestRunner**.
+2. Navigate to **Users and groups → + Add user/group**.
+3. Select a user or group, pick a role, click **Assign**.
+4. Recommended: under **Properties**, set **User assignment required?** to **Yes** so only assigned users can sign in.
+
+### Step 7 — Enable Authentication in the App
+
+Set the following environment variables before starting the application. **Never put secrets in `appsettings.json`.**
+
+**Using PowerShell (local dev):**
+
+```powershell
+$env:AZUREAD__TENANTID      = "<Directory (tenant) ID>"
+$env:AZUREAD__CLIENTID      = "<Application (client) ID>"
+$env:AZUREAD__CLIENTSECRET  = "<Client secret value>"
+$env:AUTHENTICATION__ENABLED = "true"
+dotnet run --project CopilotStudioTestRunner.WebUI
+```
+
+**Using `dotnet user-secrets` (recommended for local dev):**
+
+```bash
+cd CopilotStudioTestRunner.WebUI
+dotnet user-secrets set "AzureAd:TenantId"      "<tenant-id>"
+dotnet user-secrets set "AzureAd:ClientId"      "<client-id>"
+dotnet user-secrets set "AzureAd:ClientSecret"  "<client-secret>"
+dotnet user-secrets set "Authentication:Enabled" "true"
+```
+
+**Using environment variables in Docker:**
+
+```bash
+docker run -d \
+  -e AZUREAD__TENANTID=<tenant-id> \
+  -e AZUREAD__CLIENTID=<client-id> \
+  -e AZUREAD__CLIENTSECRET=<client-secret> \
+  -e AUTHENTICATION__ENABLED=true \
+  copilot-test-runner:latest
+```
+
+### How It Works
+
+When `Authentication:Enabled` is `false` (the default), the app uses a local development handler that automatically signs in every request as an **Admin** — no Entra ID required.
+
+When `Authentication:Enabled` is `true`, the app uses OpenID Connect to redirect users to the Microsoft login page. After sign-in, the user's App Role claims (`Admin`, `Tester`, or `Viewer`) control what they can see and do:
+
+- The **Settings** page and **Agent management** are only visible to Admins
+- Write operations (create/run test suites, upload documents) require Tester or Admin
+- Delete operations require Admin
+- All API endpoints enforce the same restrictions
+- The `/health` endpoint always remains unauthenticated for container health checks
+
+---
+
 ## Contributing
 
 Contributions welcome! Please:
