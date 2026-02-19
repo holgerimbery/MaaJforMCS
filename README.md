@@ -1,5 +1,10 @@
 ![version](https://img.shields.io/github/v/release/holgerimbery/MaaJforMCS)
 
+
+<p align="center">
+  <img src="assets/maaj-logo.png" width="220" alt="MaaJ Logo">
+</p>
+
 # Copilot Studio Test Runner - Multi‑Agent Assessment & Judgement
 
 An enterprise-grade, **multi-agent aware** .NET 9 application for automated testing of Microsoft Copilot Studio agents.
