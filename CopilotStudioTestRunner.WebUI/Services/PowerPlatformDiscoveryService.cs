@@ -197,18 +197,22 @@ public class PowerPlatformDiscoveryService : IPowerPlatformDiscoveryService
     /// <summary>
     /// Returns a credential chain that works across all hosting environments:
     ///   1. EnvironmentCredential     — AZURE_CLIENT_ID/SECRET/TENANT env vars (Docker / CI)
-    ///   2. ManagedIdentityCredential — Azure-hosted containers/VMs with a managed identity
-    ///   3. AzureCliCredential        — developer machine (az login)
-    ///   4. AzurePowerShellCredential — developer machine fallback (Connect-AzAccount)
+    ///   2. AzureCliCredential        — developer machine (az login)
+    ///   3. AzurePowerShellCredential — developer machine fallback (Connect-AzAccount)
+    ///   4. ManagedIdentityCredential — Azure-hosted containers/VMs with a managed identity
+    ///
+    /// ManagedIdentityCredential is intentionally last: on a local machine it times out
+    /// against the IMDS endpoint (169.254.169.254) and throws AuthenticationFailedException
+    /// which stops the chain. Developer credentials are tried first so local use is fast.
     /// </summary>
     public static TokenCredential CreateDefaultCredential()
     {
         EnsureAzCliInPath();
         return new ChainedTokenCredential(
             new EnvironmentCredential(),
-            new ManagedIdentityCredential(),
             new AzureCliCredential(),
-            new AzurePowerShellCredential());
+            new AzurePowerShellCredential(),
+            new ManagedIdentityCredential());
     }
 
     private static void EnsureAzCliInPath()
