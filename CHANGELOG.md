@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PowerApps API endpoint for token acquisition in `EnvironmentDiscoveryPage` and `PowerPlatformDiscoveryService` to correctly acquire a scoped Dataverse token for agent loading when running in a container
 - Reorder credential chain in `CreateDefaultCredential` for improved local development experience
 
-## [0.5.0] - 2026-02-20
+## [0.5.0] - 2026-02-19
 
 ### Added
 - Environment & Agent Discovery — browse all Power Platform environments and import Copilot Studio agents automatically via Azure CLI or service principal
@@ -63,6 +63,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Docker configuration updated for multi-agent support and authentication enhancements
+
+## [0.4.0] - 2026-02-19
+
+### Added
+- Version badge in README
+
+### Changed
+- Updated Docker and README configuration for multi-agent support and authentication enhancements
+- Updated documentation links in README
 
 ## [0.3.0] - 2026-02-19
 
@@ -95,3 +104,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Setup Wizard for guided first-run configuration
 - CLI with exit codes, JSON output, and dry-run support
 - Semantic variation generation for test cases
+
