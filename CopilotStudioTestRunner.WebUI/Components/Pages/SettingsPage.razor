@@ -2,11 +2,17 @@
 @layout MainLayout
 @attribute [Authorize(Roles = "Admin")]
 @using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Forms
 @using System.Text.Json
 @using System.IO
 @using CopilotStudioTestRunner.Core.Evaluation
 @using CopilotStudioTestRunner.Domain.Entities
+@using CopilotStudioTestRunner.WebUI.Services
 @using Serilog
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject IBackupService BackupService
+@inject CopilotStudioTestRunner.Data.TestRunnerDbContext Db
 
 <div style="max-width: 1000px;">
     @if (!string.IsNullOrEmpty(successMsg))
@@ -39,6 +45,9 @@
             </button>
             <button class="tab-btn @(tab == 3 ? "active" : "")" @onclick="() => { tab = 3; ClearMessages(); }">
                 <i class="bi bi-lightbulb-fill"></i> AI Question Gen
+            </button>
+            <button class="tab-btn @(tab == 4 ? "active" : "")" @onclick="() => { tab = 4; ClearMessages(); }">
+                <i class="bi bi-database"></i> Data Management
             </button>
         </div>
     </div>
@@ -230,6 +239,70 @@
             </div>
         </form>
     </div>
+
+    <!-- Tab 4: Data Management -->
+    <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; display: @(tab == 4 ? "block" : "none");">
+        <h5 style="margin-bottom: 20px; color: #0d47a1;"><i class="bi bi-database"></i> Data Management</h5>
+        <p style="color: #666; margin-bottom: 24px;">Back up the entire application database or restore from a previous backup. All data — agents, test suites, test cases, runs, results, and settings — is stored in the SQLite database.</p>
+
+        <!-- Backup section -->
+        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h6 style="font-weight: 600; color: #333; margin-bottom: 8px;"><i class="bi bi-download me-2"></i>Download Backup</h6>
+            <p style="font-size: 14px; color: #666; margin-bottom: 16px;">Creates a snapshot of the current database and downloads it as a <code>.db</code> file. Active test runs are blocked during backup creation.</p>
+            <button class="btn btn-primary" @onclick="TriggerBackupDownload" style="border-radius: 4px;">
+                <i class="bi bi-download me-1"></i> Download Backup
+            </button>
+        </div>
+
+        <!-- Restore section -->
+        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px;">
+            <h6 style="font-weight: 600; color: #333; margin-bottom: 8px;"><i class="bi bi-upload me-2"></i>Restore from Backup</h6>
+            <p style="font-size: 14px; color: #666; margin-bottom: 16px;">Select a <code>.db</code> backup file to replace the current database. The application will reload automatically after a successful restore.</p>
+
+            <div class="alert alert-warning" style="border-left: 4px solid #f59e0b; font-size: 14px; margin-bottom: 16px;">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <strong>Warning:</strong> This will permanently overwrite all current data including agents, test suites, runs, and settings. This action cannot be undone.
+            </div>
+
+            <InputFile OnChange="OnRestoreFileSelected" accept=".db" style="display: block; margin-bottom: 12px;" />
+
+            @if (selectedRestoreFile != null && !restoreConfirming)
+            {
+                <div style="margin-bottom: 12px; font-size: 13px; color: #555;">
+                    <i class="bi bi-file-earmark-binary me-1"></i>
+                    Selected: <strong>@selectedRestoreFile.Name</strong> (@((selectedRestoreFile.Size / 1024.0).ToString("F1")) KB)
+                </div>
+                <button class="btn btn-danger" @onclick="() => restoreConfirming = true" style="border-radius: 4px;">
+                    <i class="bi bi-upload me-1"></i> Restore
+                </button>
+            }
+
+            @if (restoreConfirming)
+            {
+                <div class="alert alert-danger" style="border-left: 4px solid #dc2626; font-size: 14px; margin-bottom: 12px;">
+                    <i class="bi bi-shield-exclamation me-2"></i>
+                    <strong>Are you sure?</strong> Restoring <strong>@selectedRestoreFile?.Name</strong> will replace all current data and reload the application.
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-danger" @onclick="PerformRestore" disabled="@isRestoring" style="border-radius: 4px;">
+                        @if (isRestoring)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>Restoring&hellip;</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg me-1"></i>
+                            <span>Confirm Restore</span>
+                        }
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="CancelRestore" disabled="@isRestoring" style="border-radius: 4px;">
+                        <i class="bi bi-x-lg me-1"></i> Cancel
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
 </div>
 
 <style>
@@ -292,6 +365,11 @@
     private int tab = 0;
     private string successMsg = "";
     private string errorMsg = "";
+
+    // Backup / Restore state
+    private IBrowserFile? selectedRestoreFile;
+    private bool restoreConfirming = false;
+    private bool isRestoring = false;
 
     // Judge
     private string judgeEndpoint = "";
@@ -631,6 +709,51 @@
         }
         
         ClearMessages(5000);
+    }
+
+    // ── Backup & Restore ─────────────────────────────────────────────────────
+
+    private async Task TriggerBackupDownload()
+    {
+        await JS.InvokeVoidAsync("triggerUrlDownload", "/api/admin/backup");
+    }
+
+    private void OnRestoreFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedRestoreFile = e.File;
+        restoreConfirming = false;
+        errorMsg = "";
+    }
+
+    private void CancelRestore()
+    {
+        restoreConfirming = false;
+        selectedRestoreFile = null;
+        errorMsg = "";
+    }
+
+    private async Task PerformRestore()
+    {
+        if (selectedRestoreFile == null) return;
+
+        isRestoring = true;
+        errorMsg = "";
+        StateHasChanged();
+
+        try
+        {
+            // 500 MB max; adjust if larger databases are expected
+            const long maxBytes = 500L * 1024 * 1024;
+            await using var stream = selectedRestoreFile.OpenReadStream(maxAllowedSize: maxBytes);
+            await BackupService.RestoreAsync(stream);
+            Nav.NavigateTo("/", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Restore failed: {ex.Message}";
+            isRestoring = false;
+            restoreConfirming = false;
+        }
     }
 
     private void ClearMessages(int delayMs = 0)

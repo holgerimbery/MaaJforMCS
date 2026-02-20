@@ -107,6 +107,7 @@ Full details including Kubernetes deployment in [Docker Deployment](./docs/wiki/
 | CLI Reference | [CLI-Reference](./docs/wiki/CLI-Reference.md) |
 | API Reference | [API-Reference](./docs/wiki/API-Reference.md) |
 | Docker Deployment | [Docker-Deployment](./docs/wiki/Docker-Deployment.md) |
+| Backup & Restore | [Backup-Restore](./docs/wiki/Backup-Restore.md) |
 | Troubleshooting | [Troubleshooting](./docs/wiki/Troubleshooting.md) |
 
 ---

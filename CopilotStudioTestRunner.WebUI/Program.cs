@@ -70,6 +70,7 @@ builder.Services.AddScoped<IMultiAgentExecutionCoordinator, MultiAgentExecutionC
 builder.Services.AddScoped<IDocumentIngestor, DocumentIngestor>();
 builder.Services.AddScoped<IDocumentChunker, DocumentChunker>();
 builder.Services.AddScoped<IPowerPlatformDiscoveryService, PowerPlatformDiscoveryService>();
+builder.Services.AddSingleton<IBackupService, BackupService>();
 
 // HTTP client
 builder.Services.AddHttpClient();
@@ -169,6 +170,57 @@ api.MapDelete("/documents/{id}", DeleteDocument).RequireAuthorization("AdminOnly
 
 // Metrics/Dashboard
 api.MapGet("/metrics/summary", GetMetricsSummary).RequireAuthorization("AnyAuthenticated");
+
+// Backup & Restore endpoints (Admin only)
+api.MapGet("/admin/backup", DownloadBackup).RequireAuthorization("AdminOnly");
+api.MapPost("/admin/restore", RestoreBackup).RequireAuthorization("AdminOnly");
+
+async Task<IResult> DownloadBackup(IBackupService backupService, TestRunnerDbContext db)
+{
+    var hasActiveRun = await db.Runs.AnyAsync(r => r.Status == "running");
+    if (hasActiveRun)
+        return Results.Conflict("A test run is currently in progress. Please wait for it to complete before creating a backup.");
+
+    try
+    {
+        var (stream, fileName) = await backupService.CreateBackupStreamAsync();
+        Log.Information("Backup created: {FileName}", fileName);
+        return Results.File(stream, "application/octet-stream", fileName);
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "Backup failed");
+        return Results.Problem("Backup failed: " + ex.Message);
+    }
+}
+
+async Task<IResult> RestoreBackup(IFormFile file, IBackupService backupService, TestRunnerDbContext db, ClaimsPrincipal user)
+{
+    if (file.Length == 0)
+        return Results.BadRequest("No file provided.");
+
+    var hasActiveRun = await db.Runs.AnyAsync(r => r.Status == "running");
+    if (hasActiveRun)
+        return Results.Conflict("A test run is currently in progress. Please wait for it to complete before restoring a backup.");
+
+    try
+    {
+        await using var stream = file.OpenReadStream();
+        Log.Information("Database restore initiated by {User}", user.Identity?.Name ?? "unknown");
+        await backupService.RestoreAsync(stream);
+        Log.Information("Database restore completed successfully by {User}", user.Identity?.Name ?? "unknown");
+        return Results.Ok(new { message = "Database restored successfully. Please reload the application." });
+    }
+    catch (InvalidDataException ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "Restore failed");
+        return Results.Problem("Restore failed: " + ex.Message);
+    }
+}
 
 async Task<IResult> GetTestSuites(TestRunnerDbContext db)
 {
