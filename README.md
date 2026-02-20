@@ -38,8 +38,11 @@ Test multiple agents simultaneously across environments, evaluate responses with
 ![Create test suite](./assets/create-test-suite.jpg)
 ![Upload documents](./assets/upload-documents.jpg)
 ![Agent creation](./assets/agent-creation.jpg)
+![Agent Discovery](./assets/discover.jpg)
 ![Test run dashboard](./assets/dashboard.jpg)
 ![Test run result](./assets/testrun.jpg)
+![Help](./assets/help.jpg)
+![Settings](./assets/settings.jpg)
 
 ---
 
