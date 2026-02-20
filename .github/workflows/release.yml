@@ -121,7 +121,7 @@ jobs:
         uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          password: ${{ secrets.DOCKERHUB_RWD_TOKEN }}
           repository: ${{ secrets.DOCKERHUB_USERNAME }}/maaj
           short-description: "Copilot Studio Test Runner — Multi-Agent Assessment & Judgement (MaaJ)"
           readme-filepath: ./README.md
