@@ -58,6 +58,52 @@
             </div>
             <div class="card-body" style="padding: 0;">
 
+            <!-- Filters -->
+            <div style="padding: 16px 20px; border-bottom: 1px solid #e8eaed; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;">
+                <div style="flex: 1; min-width: 160px;">
+                    <label style="font-size: 12px; font-weight: 600; color: #5f6368; display: block; margin-bottom: 4px;">Suite Name</label>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter by suite…"
+                           @bind="filterSuite" @bind:event="oninput" />
+                </div>
+                <div style="flex: 1; min-width: 160px;">
+                    <label style="font-size: 12px; font-weight: 600; color: #5f6368; display: block; margin-bottom: 4px;">Agent</label>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter by agent…"
+                           @bind="filterAgent" @bind:event="oninput" />
+                </div>
+                <div style="min-width: 140px;">
+                    <label style="font-size: 12px; font-weight: 600; color: #5f6368; display: block; margin-bottom: 4px;">From</label>
+                    <input type="date" class="form-control form-control-sm"
+                           @bind="filterDateFrom" />
+                </div>
+                <div style="min-width: 140px;">
+                    <label style="font-size: 12px; font-weight: 600; color: #5f6368; display: block; margin-bottom: 4px;">To</label>
+                    <input type="date" class="form-control form-control-sm"
+                           @bind="filterDateTo" />
+                </div>
+                <div style="min-width: 80px; max-width: 100px;">
+                    <label style="font-size: 12px; font-weight: 600; color: #5f6368; display: block; margin-bottom: 4px;">Pass Rate</label>
+                    <select class="form-select form-select-sm" @bind="filterPassRateOp">
+                        <option value="">Any</option>
+                        <option value="gte">&ge; %</option>
+                        <option value="lte">&le; %</option>
+                    </select>
+                </div>
+                @if (!string.IsNullOrEmpty(filterPassRateOp))
+                {
+                    <div style="min-width: 80px; max-width: 100px;">
+                        <label style="font-size: 12px; font-weight: 600; color: #5f6368; display: block; margin-bottom: 4px;">% Value</label>
+                        <input type="number" class="form-control form-control-sm" min="0" max="100" placeholder="0-100"
+                               @bind="filterPassRateValue" @bind:event="oninput" />
+                    </div>
+                }
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary" style="margin-top: 18px;" @onclick="ClearFilters"
+                            title="Clear all filters">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </button>
+                </div>
+            </div>
+
             @if (recentRuns == null || recentRuns.Count == 0)
             {
                 <div style="padding: 20px; text-align: center; color: var(--text-tertiary);">
@@ -81,7 +127,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var run in recentRuns)
+                            @foreach (var run in FilteredRuns)
                             {
                                 var runPassRate = run.TotalTestCases > 0
                                     ? (100.0 * run.PassedCount / run.TotalTestCases)
@@ -380,6 +426,57 @@
     private TestAnalysis? testAnalysis;
     private Dictionary<Guid, string> suiteNameMap = new();
     private Dictionary<Guid, string> agentNameMap = new();
+
+    // ── Filters ──────────────────────────────────────────────────────────────
+    private string filterSuite = "";
+    private string filterAgent = "";
+    private DateTime? filterDateFrom;
+    private DateTime? filterDateTo;
+    private string filterPassRateOp = "";   // "gte" | "lte" | ""
+    private double? filterPassRateValue;
+
+    private void ClearFilters()
+    {
+        filterSuite = "";
+        filterAgent = "";
+        filterDateFrom = null;
+        filterDateTo = null;
+        filterPassRateOp = "";
+        filterPassRateValue = null;
+    }
+
+    private IEnumerable<Run> FilteredRuns
+    {
+        get
+        {
+            if (recentRuns == null) return Enumerable.Empty<Run>();
+
+            var q = recentRuns.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(filterSuite))
+                q = q.Where(r => GetSuiteName(r).Contains(filterSuite, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(filterAgent))
+                q = q.Where(r => GetAgentName(r).Contains(filterAgent, StringComparison.OrdinalIgnoreCase));
+
+            if (filterDateFrom.HasValue)
+                q = q.Where(r => r.StartedAt.Date >= filterDateFrom.Value.Date);
+
+            if (filterDateTo.HasValue)
+                q = q.Where(r => r.StartedAt.Date <= filterDateTo.Value.Date);
+
+            if (!string.IsNullOrEmpty(filterPassRateOp) && filterPassRateValue.HasValue)
+            {
+                q = q.Where(r =>
+                {
+                    var rate = r.TotalTestCases > 0 ? 100.0 * r.PassedCount / r.TotalTestCases : 0;
+                    return filterPassRateOp == "gte" ? rate >= filterPassRateValue.Value : rate <= filterPassRateValue.Value;
+                });
+            }
+
+            return q;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
