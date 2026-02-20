@@ -26,7 +26,7 @@ Test multiple agents simultaneously across environments, evaluate responses with
 - **CLI for CI/CD** — exit codes, JSON output, dry-run support
 - **Microsoft Entra ID Authentication** — optional enterprise SSO with Admin / Tester / Viewer RBAC roles
 - **Backup & Restore** — download a full database snapshot and restore from the Settings page (Admin only)
-- **Local-First Architecture** — runs entirely on-premise; only calls Direct Line and an AI Foundry endpoint
+- **Local-First & Container-Ready** — runs entirely on-premise or in a container via Docker Compose; only calls Direct Line and an AI Foundry endpoint
 
 ---
 
