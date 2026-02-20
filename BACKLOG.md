@@ -46,6 +46,7 @@
 
 ## Completed
 
+- [x] Backup & Restore — Data Management tab in Settings with download backup, restore from file, active-run guard, and atomic DB replacement *(v0.7.0)*
 - [x] Expose app via external nginx proxy with SSL termination — trust `X-Forwarded-*` headers (`ASPNETCORE_FORWARDEDHEADERS_ENABLED`) *(v0.6.0)*
 - [x] Azure CLI disclaimer on Discovery page when running in a container *(v0.6.0)*
 - [x] Fix Discovery page to acquire a properly scoped Dataverse token for agent loading *(v0.6.0)*
