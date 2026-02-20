@@ -37,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI: `report` command — export a previous run's results as JSON or CSV from CI
 - CLI: `agents` command — list configured agents from CLI
 
+## [0.7.0] - 2026-02-20
+
+### Added
+- Backup & Restore — new **Data Management** tab in Settings to download a full database backup (`.db`) and restore from a previous backup, with active-run guard, SQLite magic-byte validation, and atomic file replacement
+- MaaJ branding hero on Help page — logo, product name, and subtitle integrated into the Help page header
+- `BackupService` — server-side service encapsulating WAL checkpoint, safe file copy, and atomic restore logic
+- `GET /api/admin/backup` and `POST /api/admin/restore` API endpoints (Admin role only)
+
 ## [0.6.0] - 2026-02-20
 
 ### Added
@@ -105,3 +113,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI with exit codes, JSON output, and dry-run support
 - Semantic variation generation for test cases
 
+[Unreleased]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/holgerimbery/MaaJforMCS/releases/tag/v0.1.0

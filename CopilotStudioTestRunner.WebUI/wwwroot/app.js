@@ -10,3 +10,8 @@ window.downloadFile = function (bytes, filename, mimeType) {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 };
+
+// Trigger a file download from a URL (e.g. an API endpoint returning Content-Disposition: attachment)
+window.triggerUrlDownload = function (url) {
+    window.location.href = url;
+};
