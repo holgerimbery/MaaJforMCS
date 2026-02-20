@@ -8,9 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- GitHub Actions release workflow — builds and pushes multi-arch container image (linux/amd64, linux/arm64) to Docker Hub and ghcr.io on version tag push
-- Quickstart package — auto-generated zip (docker-compose.yml + .env.template + README.txt) attached to each GitHub Release for non-developer deployment
-- Docker image tag strategy — `{version}`, `{major}.{minor}`, and `latest` tags published per release
 - Conversation flow testing — multi-turn test cases across several exchanges
 - Test case import from CSV/Excel — bulk upload of questions
 - Question generation wizard — guided wizard from an uploaded knowledge base document
@@ -39,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI: `generate` command — generate test cases from a document entirely from CI
 - CLI: `report` command — export a previous run's results as JSON or CSV from CI
 - CLI: `agents` command — list configured agents from CLI
+
+## [0.8.0] - 2026-02-20
+
+### Added
+- GitHub Actions release workflow — builds and pushes multi-arch container image (linux/amd64, linux/arm64) to Docker Hub and ghcr.io on version tag push
+- Quickstart package — auto-generated zip (docker-compose.yml + .env.template + README.txt) attached to each GitHub Release for non-developer deployment
+- Docker image tag strategy — `{version}`, `{major}.{minor}`, and `latest` tags published per release
 
 ## [0.7.0] - 2026-02-20
 
@@ -116,7 +120,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI with exit codes, JSON output, and dry-run support
 - Semantic variation generation for test cases
 
-[Unreleased]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.4.0...v0.5.0

@@ -46,7 +46,7 @@
 
 ## Completed
 
-- [x] Publish versioned container image to Docker Hub and ghcr.io via GitHub Actions on release tag, with auto-generated quickstart package (docker-compose.yml + .env.template + README.txt) — multi-arch (amd64 + arm64) *(v0.8.0 candidate)*
+- [x] Publish versioned container image to Docker Hub and ghcr.io via GitHub Actions on release tag, with auto-generated quickstart package (docker-compose.yml + .env.template + README.txt) — multi-arch (amd64 + arm64) *(v0.8.0)*
 - [x] Backup & Restore — Data Management tab in Settings with download backup, restore from file, active-run guard, and atomic DB replacement *(v0.7.0)*
 - [x] Expose app via external nginx proxy with SSL termination — trust `X-Forwarded-*` headers (`ASPNETCORE_FORWARDEDHEADERS_ENABLED`) *(v0.6.0)*
 - [x] Azure CLI disclaimer on Discovery page when running in a container *(v0.6.0)*
