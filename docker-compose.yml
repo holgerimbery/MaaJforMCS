@@ -9,6 +9,8 @@ services:
       - "8080:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      # Trust X-Forwarded-Proto / X-Forwarded-For headers from the upstream nginx proxy
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
       JUDGE__ENDPOINT: "${JUDGE_ENDPOINT}"
       JUDGE__APIKEY: "${JUDGE_API_KEY}"
       JUDGE__MODEL: "${JUDGE_MODEL:-gpt-4o}"
