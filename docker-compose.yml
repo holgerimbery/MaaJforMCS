@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   copilot-test-runner:
     image: copilot-test-runner:latest
