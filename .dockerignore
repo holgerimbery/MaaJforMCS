@@ -5,6 +5,7 @@
 # Git
 .git/
 .gitignore
+.github/
 
 # IDE
 .vscode/
@@ -17,16 +18,22 @@ logs/
 *.db-shm
 *.db-wal
 
-# Secrets
+# Secrets — never include in image layers
 .env
-.env.local
+.env.*
+!.env.template
 **/appsettings.Development.json
+**/appsettings.Production.json
 **/appsettings.json
 !**/appsettings.template.json
 
 # Test results
 **/TestResults/
 coverage/
+CopilotStudioTestRunner.Tests/
+
+# Quickstart (distribution only, not needed in image)
+quickstart/
 
 # Misc
 **/*.user
@@ -38,3 +45,6 @@ doc-wip/
 assets/
 docs/
 README.md
+CHANGELOG.md
+BACKLOG.md
+

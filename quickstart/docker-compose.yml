@@ -1,0 +1,38 @@
+services:
+  maaj:
+    image: holgerimbery/maaj:latest   # pin to a specific version tag in production, e.g. holgerimbery/maaj:0.7.0
+    ports:
+      - "5062:8080"
+    env_file: .env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Trust X-Forwarded-Proto / X-Forwarded-For headers from an upstream reverse proxy
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      JUDGE__ENDPOINT: "${JUDGE_ENDPOINT}"
+      JUDGE__APIKEY: "${JUDGE_API_KEY}"
+      JUDGE__MODEL: "${JUDGE_MODEL:-gpt-4o}"
+      AUTHENTICATION__ENABLED: "${AUTHENTICATION_ENABLED:-false}"
+      AZUREAD__INSTANCE: "${AZUREAD_INSTANCE:-https://login.microsoftonline.com/}"
+      AZUREAD__TENANTID: "${AZURE_TENANT_ID:-}"
+      AZUREAD__CLIENTID: "${AZURE_CLIENT_ID:-}"
+      AZUREAD__CLIENTSECRET: "${AZURE_CLIENT_SECRET:-}"
+      # The AZUREAD vars above also enable the Discover page (Environment & Agent Discovery)
+      # inside the container — no az login needed.
+      # The service principal needs:
+      #   Power Platform service: user_impersonation (to list environments)
+      #   Dynamics CRM: user_impersonation (to list agents per environment)
+      AZUREAD__CALLBACKPATH: "/signin-oidc"
+      AZUREAD__SIGNEDOUTCALLBACKPATH: "/signout-callback-oidc"
+    volumes:
+      - maaj-data:/app/data
+      - maaj-logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  maaj-data:
+  maaj-logs:

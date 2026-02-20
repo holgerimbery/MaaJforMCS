@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- GitHub Actions release workflow — builds and pushes multi-arch container image (linux/amd64, linux/arm64) to Docker Hub and ghcr.io on version tag push
+- Quickstart package — auto-generated zip (docker-compose.yml + .env.template + README.txt) attached to each GitHub Release for non-developer deployment
+- Docker image tag strategy — `{version}`, `{major}.{minor}`, and `latest` tags published per release
 - Conversation flow testing — multi-turn test cases across several exchanges
 - Test case import from CSV/Excel — bulk upload of questions
 - Question generation wizard — guided wizard from an uploaded knowledge base document
