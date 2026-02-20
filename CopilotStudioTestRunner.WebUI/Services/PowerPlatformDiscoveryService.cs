@@ -183,7 +183,7 @@ public class PowerPlatformDiscoveryService : IPowerPlatformDiscoveryService
     public async Task<List<DiscoveredEnvironment>> GetEnvironmentsAsync(TokenCredential credential, CancellationToken ct = default)
     {
         var token = await credential.GetTokenAsync(
-            new TokenRequestContext(new[] { "https://service.powerapps.com/.default" }), ct);
+            new TokenRequestContext(new[] { "https://api.powerapps.com/.default" }), ct);
         return await GetEnvironmentsAsync(token.Token, ct);
     }
 

@@ -510,7 +510,7 @@
             if (tokenAcquisition is null) return null;
 
             return await tokenAcquisition.GetAccessTokenForUserAsync(
-                new[] { "https://service.powerapps.com/user_impersonation" });
+                new[] { "https://api.powerapps.com/user" });
         }
         catch (MicrosoftIdentityWebChallengeUserException)
         {
@@ -521,6 +521,30 @@
         catch (Exception ex)
         {
             tokenAcquisitionError = $"Could not acquire token automatically: {ex.Message}";
+        }
+
+        return null;
+    }
+
+    private async Task<string?> AcquireDataverseTokenAsync(string orgUrl)
+    {
+        if (!authEnabled) return null;
+
+        try
+        {
+            var tokenAcquisition = ServiceProvider.GetService<ITokenAcquisition>();
+            if (tokenAcquisition is null) return null;
+
+            var scope = $"{orgUrl.TrimEnd('/')}/.default";
+            return await tokenAcquisition.GetAccessTokenForUserAsync(new[] { scope });
+        }
+        catch (MicrosoftIdentityWebChallengeUserException)
+        {
+            // Consent needed — surface error in the caller
+        }
+        catch (Exception)
+        {
+            // Fall through — caller will show the manual token input
         }
 
         return null;
@@ -556,7 +580,7 @@
             {
                 var token = !string.IsNullOrWhiteSpace(state.DataverseToken)
                     ? state.DataverseToken.Trim()
-                    : currentAccessToken ?? await AcquireTokenAsync();
+                    : await AcquireDataverseTokenAsync(env.OrgUrl);
 
                 if (string.IsNullOrEmpty(token))
                 {
