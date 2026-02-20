@@ -68,7 +68,7 @@ Use **Settings → Data Management** to download a backup at any time.
 
 > Authentication is **disabled by default** in the quickstart package — all users get Admin access.
 > Set `AUTHENTICATION_ENABLED=true` and fill in the `AZURE_*` values if the app will be internet-accessible.
-> See [Entra ID Setup](./docs/wiki/Entra-ID-Setup.md).
+> See [Entra ID Setup](https://github.com/holgerimbery/MaaJforMCS/wiki/Entra-ID-Setup).
 
 ---
 
@@ -88,7 +88,7 @@ dotnet run
 
 The wizard guides you through creating your first agent, uploading documents, generating test cases, and running your first suite.
 
-For a step-by-step walkthrough see [Quick Start](./docs/wiki/Quick-Start.md).
+For a step-by-step walkthrough see [Quick Start](https://github.com/holgerimbery/MaaJforMCS/wiki/Quick-Start).
 
 ---
 
@@ -115,7 +115,7 @@ AZURE_CLIENT_ID=
 AZURE_CLIENT_SECRET=
 ```
 
-Full details including Kubernetes deployment in [Docker Deployment](./docs/wiki/Docker-Deployment.md).
+Full details including Kubernetes deployment in [Docker Deployment](https://github.com/holgerimbery/MaaJforMCS/wiki/Docker-Deployment).
 
 ---
 
@@ -123,22 +123,22 @@ Full details including Kubernetes deployment in [Docker Deployment](./docs/wiki/
 
 | Topic | Link |
 |-------|------|
-| Getting Started | [Getting-Started](./docs/wiki/Getting-Started.md) |
-| Quick Start (5 min) | [Quick-Start](./docs/wiki/Quick-Start.md) |
-| Setup Wizard | [Setup-Wizard](./docs/wiki/Setup-Wizard.md) |
-| Environment & Agent Discovery | [Environment-Discovery](./docs/wiki/Environment-Discovery.md) |
-| Multi-Agent Testing | [Multi-Agent-Testing](./docs/wiki/Multi-Agent-Testing.md) |
-| Architecture | [Architecture](./docs/wiki/Architecture.md) |
-| Configuration Reference | [Configuration-Reference](./docs/wiki/Configuration-Reference.md) |
-| Authentication & RBAC | [Authentication](./docs/wiki/Authentication.md) · [Entra ID Setup](./docs/wiki/Entra-ID-Setup.md) · [RBAC and Roles](./docs/wiki/RBAC-and-Roles.md) |
-| Judge Evaluation | [Judge-Evaluation](./docs/wiki/Judge-Evaluation.md) |
-| Document Processing | [Document-Processing](./docs/wiki/Document-Processing.md) |
-| Test Suites & Cases | [Test-Suites-and-Cases](./docs/wiki/Test-Suites-and-Cases.md) |
-| CLI Reference | [CLI-Reference](./docs/wiki/CLI-Reference.md) |
-| API Reference | [API-Reference](./docs/wiki/API-Reference.md) |
-| Docker Deployment | [Docker-Deployment](./docs/wiki/Docker-Deployment.md) |
-| Backup & Restore | [Backup-Restore](./docs/wiki/Backup-Restore.md) |
-| Troubleshooting | [Troubleshooting](./docs/wiki/Troubleshooting.md) |
+| Getting Started | [Getting-Started](https://github.com/holgerimbery/MaaJforMCS/wiki/Getting-Started) |
+| Quick Start (5 min) | [Quick-Start](https://github.com/holgerimbery/MaaJforMCS/wiki/Quick-Start) |
+| Setup Wizard | [Setup-Wizard](https://github.com/holgerimbery/MaaJforMCS/wiki/Setup-Wizard) |
+| Environment & Agent Discovery | [Environment-Discovery](https://github.com/holgerimbery/MaaJforMCS/wiki/Environment-Discovery) |
+| Multi-Agent Testing | [Multi-Agent-Testing](https://github.com/holgerimbery/MaaJforMCS/wiki/Multi-Agent-Testing) |
+| Architecture | [Architecture](https://github.com/holgerimbery/MaaJforMCS/wiki/Architecture) |
+| Configuration Reference | [Configuration-Reference](https://github.com/holgerimbery/MaaJforMCS/wiki/Configuration-Reference) |
+| Authentication & RBAC | [Authentication](https://github.com/holgerimbery/MaaJforMCS/wiki/Authentication) · [Entra ID Setup](https://github.com/holgerimbery/MaaJforMCS/wiki/Entra-ID-Setup) · [RBAC and Roles](https://github.com/holgerimbery/MaaJforMCS/wiki/RBAC-and-Roles) |
+| Judge Evaluation | [Judge-Evaluation](https://github.com/holgerimbery/MaaJforMCS/wiki/Judge-Evaluation) |
+| Document Processing | [Document-Processing](https://github.com/holgerimbery/MaaJforMCS/wiki/Document-Processing) |
+| Test Suites & Cases | [Test-Suites-and-Cases](https://github.com/holgerimbery/MaaJforMCS/wiki/Test-Suites-and-Cases) |
+| CLI Reference | [CLI-Reference](https://github.com/holgerimbery/MaaJforMCS/wiki/CLI-Reference) |
+| API Reference | [API-Reference](https://github.com/holgerimbery/MaaJforMCS/wiki/API-Reference) |
+| Docker Deployment | [Docker-Deployment](https://github.com/holgerimbery/MaaJforMCS/wiki/Docker-Deployment) |
+| Backup & Restore | [Backup-Restore](https://github.com/holgerimbery/MaaJforMCS/wiki/Backup-Restore) |
+| Troubleshooting | [Troubleshooting](https://github.com/holgerimbery/MaaJforMCS/wiki/Troubleshooting) |
 
 ---
 
@@ -153,3 +153,4 @@ Full details including Kubernetes deployment in [Docker Deployment](./docs/wiki/
 ## License
 
 MIT 2026 Holger Imbery
+
