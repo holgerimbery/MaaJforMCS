@@ -76,13 +76,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Authentication handler added for development environment
 
-## [0.2.0] - 2025-xx-xx
+## [0.2.0] - 2026-xx-xx
 
 ### Added
 - Multi-agent execution coordinator
 - Parallel test execution across multiple agents
 
-## [0.1.0] - 2025-xx-xx
+## [0.1.0] - 2026-xx-xx
 
 ### Added
 - Initial release of Copilot Studio Test Runner Web UI
