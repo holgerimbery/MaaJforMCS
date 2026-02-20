@@ -20,6 +20,7 @@ WORKDIR /app
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
 COPY --from=build /app/publish .
+COPY VERSION ./VERSION
 RUN mkdir -p /app/data/index /app/data/uploads /app/logs \
     && chown -R appuser:appgroup /app/data /app/logs
 
