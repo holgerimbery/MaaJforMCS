@@ -43,7 +43,36 @@ Test multiple agents simultaneously across environments, evaluate responses with
 
 ---
 
-## Quick Start
+## Quick Start (no build required)
+
+The fastest way to get running is to download the **quickstart package** from the latest GitHub Release — no .NET SDK or source code needed, just Docker.
+The container image is pulled automatically from Docker Hub ([holgerimbery/maaj](https://hub.docker.com/r/holgerimbery/maaj)).
+
+1. **Download** `maaj-quickstart-{version}.zip` from the [latest release](https://github.com/holgerimbery/MaaJforMCS/releases/latest) and unzip it
+2. **Copy** the env template:
+   ```
+   # Windows
+   copy .env.template .env
+   # Mac / Linux
+   cp .env.template .env
+   ```
+3. **Edit `.env`** — fill in your Azure OpenAI endpoint, API key, and model name
+4. **Start**:
+   ```bash
+   docker compose up -d
+   ```
+5. **Open** `http://localhost:5062` — the Setup Wizard guides you through the rest
+
+Data is stored in a named Docker volume (`maaj-data`) and persists across restarts.
+Use **Settings → Data Management** to download a backup at any time.
+
+> Authentication is **disabled by default** in the quickstart package — all users get Admin access.
+> Set `AUTHENTICATION_ENABLED=true` and fill in the `AZURE_*` values if the app will be internet-accessible.
+> See [Entra ID Setup](./docs/wiki/Entra-ID-Setup.md).
+
+---
+
+## Quick Start (from source)
 
 ```bash
 # Clone and build
