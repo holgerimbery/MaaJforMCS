@@ -14,6 +14,9 @@ Test multiple agents simultaneously across environments, evaluate responses with
 > **Full documentation is available in the [Wiki](https://github.com/holgerimbery/MaaJforMCS/wiki).**
 
 ---
+> MaaJ is **not** intended to replace the Microsoft Copilot Studio Kit or Copilot Studio Evaluation. Instead, it serves as a **flexible, open starting point** for automated, enterprise‑grade verification and validation of Copilot Studio agents. Its purpose is to give users **full control over every aspect of the testing process** — both through a transparent GUI and through fully accessible source code—so they can adapt, extend, and integrate the testing workflow to meet their specific architectural, compliance, and automation requirements
+
+---
 
 ## Key Features
 
