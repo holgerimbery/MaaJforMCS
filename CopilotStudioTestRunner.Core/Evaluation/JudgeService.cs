@@ -52,11 +52,15 @@ public class AzureAIFoundryJudgeService : IJudgeService
             _logger.Debug("Evaluating test case: {TestCaseName}", testCase.Name);
 
             // Call Azure OpenAI API
+            if (string.IsNullOrEmpty(judgeSettings.Endpoint) || string.IsNullOrEmpty(judgeSettings.ApiKey))
+                throw new InvalidOperationException(
+                    "Judge LLM endpoint and API key are required. Configure them on the agent or override them in the rubric.");
+
             var client = new AzureOpenAIClient(
                 new Uri(judgeSettings.Endpoint),
                 new AzureKeyCredential(judgeSettings.ApiKey));
 
-            var chatClient = client.GetChatClient(judgeSettings.Model);
+            var chatClient = client.GetChatClient(judgeSettings.Model ?? "gpt-4o-mini");
             
             var messages = new List<ChatMessage>
             {

@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Conversation flow testing — multi-turn test cases across several exchanges
 - Test case import from CSV/Excel — bulk upload of questions
-- Question generation wizard — guided wizard from an uploaded knowledge base document
 - Re-run failed tests only — trigger a new run executing only failed test cases
 - Test case cloning — duplicate an existing test case to create variants
 - Bulk test case operations — enable, disable, or delete multiple test cases at once
@@ -21,7 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Topic/tag grouping — tag test cases by topic and show pass rates per topic
 - Manual verdict override — allow a tester or admin to override the AI judge's verdict
 - Pass threshold per test suite — override global judge pass threshold at the suite level
-- Judge prompt customization — per-agent or per-suite customization of the judge system prompt
 - Scheduled runs — cron-style scheduling for automatic suite execution
 - Webhook / Teams notification — post a summary card to Teams on run completion or regression
 - Email notification — send a run-summary email via SMTP
@@ -36,6 +34,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI: `generate` command — generate test cases from a document entirely from CI
 - CLI: `report` command — export a previous run's results as JSON or CSV from CI
 - CLI: `agents` command — list configured agents from CLI
+
+## [0.9.0] - 2026-02-21
+
+### Added
+- Configurable question-generation system prompt — global default editable in **Settings → AI Question Gen** tab; per-agent override in the **Agents** page (both Create and Edit forms)
+- "Load default to edit" / "Revert to built-in" button on the question-generation system prompt field — loads the full built-in prompt into the textarea for in-place editing
+- "Load default to edit" / "Revert to built-in" button on the judge rubric system prompt field in **Judge Rubrics** — same pattern for the judge prompt
+- `Agent.QuestionGenSystemPrompt` field — stores a per-agent question-generation prompt override in the database
+- `GlobalQuestionGenerationSetting.SystemPrompt` field — stores the global question-generation prompt override in the database
+- EF Core migration `AddQuestionGenSystemPrompt` applying both new columns
+- Prompt override resolution order: agent-level → global DB prompt → built-in hardcoded default
+- Tooltips (ⓘ) on all LLM-configuration fields across Agents, Settings, Setup Wizard, TestSuites, and Judge Rubrics pages
+
+### Changed
+- `JudgeSetting` LLM fields (`Endpoint`, `ApiKey`, `Model`) made nullable — separates the judge LLM from the question-generation LLM; agents can delegate judge evaluation to the global configuration without duplicating credentials
 
 ## [0.8.0] - 2026-02-20
 
@@ -120,7 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI with exit codes, JSON output, and dry-run support
 - Semantic variation generation for test cases
 
-[Unreleased]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/holgerimbery/MaaJforMCS/compare/v0.5.0...v0.6.0

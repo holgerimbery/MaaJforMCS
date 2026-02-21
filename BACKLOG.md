@@ -5,7 +5,6 @@
 - [ ] **Conversation flow testing** — multi-turn test cases that verify the agent handles context across several exchanges, not just single Q&A
 - [ ] **Regression detection** — flag when a test that previously passed now fails, with a diff of the judge rationale
 - [ ] **Test case import from CSV/Excel** — bulk upload questions instead of entering them one by one
-- [ ] **Question generation wizard** — guided wizard that generates test cases from an uploaded knowledge base document
 - [ ] **Re-run failed tests only** — from a completed run, trigger a new run that executes only the test cases that failed, without re-running passing ones
 - [ ] **Test case cloning** — duplicate an existing test case within a suite to quickly create variants without re-entering data
 - [ ] **Bulk test case operations** — select multiple test cases and enable, disable, or delete them in a single action
@@ -19,7 +18,6 @@
 - [ ] **Topic/tag grouping** — tag test cases by topic and show pass rates per topic to identify weak subject areas
 - [ ] **Manual verdict override** — allow a tester or admin to override the AI judge's verdict on a specific result with a human annotation and justification, useful for edge cases where the judge is incorrect
 - [ ] **Pass threshold per test suite** — override the global judge pass threshold at the suite level so critical suites can enforce a stricter standard than general-purpose ones
-- [ ] **Judge prompt customization** — allow per-agent or per-suite customization of the judge system prompt to tune evaluation criteria for specialized domains (e.g. legal, medical, HR)
 
 ## Operations
 
@@ -46,6 +44,10 @@
 
 ## Completed
 
+- [x] Configurable question-generation system prompt — global default in Settings → AI Question Gen; per-agent override in the Agents page; "Load default to edit" / "Revert to built-in" buttons; prompt override resolution (agent → global DB → built-in) *(v0.9.0)*
+- [x] "Load default to edit" / "Revert to built-in" buttons on judge rubric system prompt field *(v0.9.0)*
+- [x] Make `JudgeSetting` LLM fields nullable to separate judge LLM from question-generation LLM *(v0.9.0)*
+- [x] Tooltips (ⓘ) on all LLM-configuration fields across Agents, Settings, Setup Wizard, TestSuites, and Judge Rubrics pages *(v0.9.0)*
 - [x] Publish versioned container image to Docker Hub and ghcr.io via GitHub Actions on release tag, with auto-generated quickstart package (docker-compose.yml + .env.template + README.txt) — multi-arch (amd64 + arm64) *(v0.8.0)*
 - [x] Backup & Restore — Data Management tab in Settings with download backup, restore from file, active-run guard, and atomic DB replacement *(v0.7.0)*
 - [x] Expose app via external nginx proxy with SSL termination — trust `X-Forwarded-*` headers (`ASPNETCORE_FORWARDEDHEADERS_ENABLED`) *(v0.6.0)*

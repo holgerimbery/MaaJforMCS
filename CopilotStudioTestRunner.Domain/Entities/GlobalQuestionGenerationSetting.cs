@@ -9,6 +9,8 @@ public class GlobalQuestionGenerationSetting
     public double Temperature { get; set; } = 0.7;
     public double TopP { get; set; } = 1.0;
     public int MaxOutputTokens { get; set; } = 1000;
+    // null = use built-in default prompt
+    public string? SystemPrompt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public string UpdatedBy { get; set; } = string.Empty;
 }

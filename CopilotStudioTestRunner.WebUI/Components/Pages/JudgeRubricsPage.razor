@@ -1,0 +1,655 @@
+@page "/judge-rubrics"
+@layout MainLayout
+@attribute [Authorize]
+@using CopilotStudioTestRunner.Data
+@using CopilotStudioTestRunner.Domain.Entities
+@using Microsoft.EntityFrameworkCore
+
+@inject TestRunnerDbContext DbContext
+
+<div style="max-width: 1200px;">
+    <div style="display: flex; gap: 12px; margin-bottom: 24px; align-items: center;">
+        <div>
+            <h2 style="margin: 0; color: #1f1f23;">
+                <i class="bi bi-award" style="color: #6f42c1; margin-right: 8px;"></i>Judge Rubrics
+            </h2>
+            <p style="margin: 4px 0 0 0; color: #5f6368; font-size: 14px;">Create and manage named evaluation rubric presets for test suites</p>
+        </div>
+        <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button class="btn btn-primary" style="background-color: #6f42c1; border-color: #6f42c1;" @onclick="ShowCreateForm">
+                <i class="bi bi-plus-circle"></i> New Rubric
+            </button>
+            <button class="btn btn-outline-secondary" @onclick="LoadRubrics">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMsg))
+    {
+        <div class="alert alert-success alert-dismissible fade show slide-in-left" role="alert">
+            <i class="bi bi-check-circle"></i> @successMsg
+            <button type="button" class="btn-close" @onclick="@(() => successMsg = null)"></button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(errorMsg))
+    {
+        <div class="alert alert-danger alert-dismissible fade show slide-in-left" role="alert">
+            <i class="bi bi-exclamation-circle"></i> @errorMsg
+            <button type="button" class="btn-close" @onclick="@(() => errorMsg = null)"></button>
+        </div>
+    }
+
+    <!-- Create / Edit Form -->
+    @if (showForm)
+    {
+        <div style="background: #faf8ff; border: 1px solid #d8c8f0; border-left: 4px solid #6f42c1; border-radius: 12px; padding: 28px; margin-bottom: 28px;">
+            <h4 style="margin: 0 0 20px 0; color: #6f42c1;">
+                <i class="bi bi-@(editingRubric == null ? "plus-circle" : "pencil")" style="margin-right: 8px;"></i>
+                @(editingRubric == null ? "Create New Rubric" : $"Edit: {editingRubric.Name}")
+            </h4>
+
+            <!-- Name & Meta -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Rubric Name <span style="color:red">*</span></label>
+                    <input type="text" class="form-control" @bind="formName" placeholder="e.g., Strict Factuality, RAG Evaluator" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">
+                        Pass Threshold
+                        <span title="Weighted score (0–100%) a test must reach to be marked PASS. Can be overridden per agent or test suite." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="range" class="form-range" min="0" max="1" step="0.05" @bind="formPassThreshold" style="flex:1;" />
+                        <span style="min-width: 45px; color: #555; font-weight: 600;">@((formPassThreshold * 100).ToString("F0"))%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collapsible LLM override section -->
+            <details class="mb-4" style="background:#fff;border:1px solid #d8c8f0;border-radius:8px;padding:0;">
+                <summary style="padding:14px 18px;cursor:pointer;font-weight:600;color:#6f42c1;user-select:none;list-style:none;display:flex;align-items:center;gap:8px;">
+                    <i class="bi bi-cpu"></i> Override LLM Configuration
+                    <span style="font-weight:400;color:#888;font-size:0.85em;margin-left:4px;">(optional — leave blank to inherit the agent's judge LLM)</span>
+                    <i class="bi bi-chevron-down" style="margin-left:auto;font-size:0.8em;"></i>
+                </summary>
+                <div style="padding:16px 18px 18px 18px;border-top:1px solid #e8e0f8;">
+                    <div class="alert" style="background:#f0ebff;border:1px solid #d8c8f0;border-left:4px solid #6f42c1;padding:10px 14px;border-radius:6px;font-size:0.87em;margin-bottom:16px;">
+                        <i class="bi bi-info-circle" style="color:#6f42c1;"></i>
+                        <strong>LLM inheritance:</strong> Leave Endpoint and API Key blank to use the agent's configured judge LLM.
+                        Only fill these in if this rubric should use a <em>different</em> model or endpoint.
+                        If only a model name is specified (no endpoint/key), it will be used with the agent's endpoint.
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">
+                                Azure OpenAI Endpoint
+                                <span title="Azure AI Foundry or OpenAI endpoint, e.g. https://resource.openai.azure.com/. Leave blank to inherit from the agent." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                            </label>
+                            <input type="url" class="form-control" @bind="formEndpoint" placeholder="Leave blank to inherit from agent" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">
+                                API Key
+                                <span title="Azure OpenAI API key. Required only if specifying a custom endpoint above." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                            </label>
+                            <input type="password" class="form-control" @bind="formApiKey" placeholder="Leave blank to inherit from agent" autocomplete="new-password" />
+                        </div>
+                    </div>
+
+                    <div class="row mb-1">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">
+                                Model
+                                <span title="Deployment/model name, e.g. gpt-4o-mini. If blank, uses the agent's judge model." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                            </label>
+                            <input type="text" class="form-control" @bind="formModel" placeholder="Leave blank to inherit from agent" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">
+                                Temperature
+                                <span title="Sampling temperature (0=deterministic, 2=creative). Only applies when a custom endpoint is set." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                            </label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="range" class="form-range" min="0" max="2" step="0.1" @bind="formTemperature" style="flex:1;" />
+                                <span style="min-width: 35px; color:#555; font-weight:600;">@formTemperature.ToString("F1")</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">
+                                Top P
+                                <span title="Nucleus sampling parameter. Only applies when a custom endpoint is set." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                            </label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="range" class="form-range" min="0" max="1" step="0.05" @bind="formTopP" style="flex:1;" />
+                                <span style="min-width: 35px; color:#555; font-weight:600;">@formTopP.ToString("F2")</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">
+                                Max Output Tokens
+                                <span title="Maximum tokens in the judge's response. Only applies when a custom endpoint is set." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                            </label>
+                            <input type="number" class="form-control" @bind="formMaxOutputTokens" min="100" max="4000" step="100" />
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Scoring weights -->
+            <div style="background: #fff; border: 1px solid #d8c8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                <h6 style="color: #6f42c1; margin-bottom: 4px;"><i class="bi bi-sliders"></i> Scoring Dimension Weights</h6>
+                <p style="font-size: 0.82em; color: #666; margin-bottom: 16px;">Weights should sum to 1.0. Current sum: <strong style="color: @(Math.Abs(formWeightSum - 1.0) < 0.01 ? "#198754" : "#dc3545")">@formWeightSum.ToString("F2")</strong></p>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Task Success</label>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <input type="range" class="form-range" min="0" max="1" step="0.05" @bind="formTaskSuccessWeight" @bind:after="StateHasChanged" style="flex:1;" />
+                            <span style="min-width:38px;color:#555;">@formTaskSuccessWeight.ToString("F2")</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Intent Match</label>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <input type="range" class="form-range" min="0" max="1" step="0.05" @bind="formIntentMatchWeight" @bind:after="StateHasChanged" style="flex:1;" />
+                            <span style="min-width:38px;color:#555;">@formIntentMatchWeight.ToString("F2")</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Factuality</label>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <input type="range" class="form-range" min="0" max="1" step="0.05" @bind="formFactualityWeight" @bind:after="StateHasChanged" style="flex:1;" />
+                            <span style="min-width:38px;color:#555;">@formFactualityWeight.ToString("F2")</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Helpfulness</label>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <input type="range" class="form-range" min="0" max="1" step="0.05" @bind="formHelpfulnessWeight" @bind:after="StateHasChanged" style="flex:1;" />
+                            <span style="min-width:38px;color:#555;">@formHelpfulnessWeight.ToString("F2")</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Safety</label>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <input type="range" class="form-range" min="0" max="1" step="0.05" @bind="formSafetyWeight" @bind:after="StateHasChanged" style="flex:1;" />
+                            <span style="min-width:38px;color:#555;">@formSafetyWeight.ToString("F2")</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100" @onclick="NormalizeWeights">
+                            <i class="bi bi-align-center"></i> Normalize to 1.0
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom prompt template -->
+            <div class="mb-4">
+                <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;">
+                    <label class="form-label fw-semibold mb-0">Custom System Prompt / Rubric <small class="text-muted">(optional — leave blank to use built-in default)</small></label>
+                    @if (string.IsNullOrWhiteSpace(formPromptTemplate))
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="CopyDefaultPromptToForm"
+                                title="Load the built-in default prompt into this field so you can edit it">
+                            <i class="bi bi-clipboard-plus"></i> Load default to edit
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="ClearPromptTemplate"
+                                title="Clear the custom prompt and revert to the built-in default">
+                            <i class="bi bi-x-circle"></i> Revert to built-in
+                        </button>
+                    }
+                </div>
+                <textarea class="form-control font-monospace" @bind="formPromptTemplate" rows="16"
+                          placeholder="@DefaultPromptPlaceholder"></textarea>
+                <small class="text-muted">The model must return JSON with: task_success, intent_match, factuality, helpfulness, safety, verdict, rationale, citations.</small>
+            </div>
+
+            <!-- Options -->
+            <div class="mb-4">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" id="useRefAnswer" @bind="formUseReferenceAnswer" />
+                    <label class="form-check-label" for="useRefAnswer">Use reference answer when available</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" id="isDefault" @bind="formIsDefault" />
+                    <label class="form-check-label" for="isDefault">Mark as default rubric</label>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:12px;">
+                <button class="btn btn-primary" style="background-color:#6f42c1;border-color:#6f42c1;" @onclick="SaveRubric"
+                        disabled="@(string.IsNullOrWhiteSpace(formName))">
+                    <i class="bi bi-save"></i> @(editingRubric == null ? "Create Rubric" : "Save Changes")
+                </button>
+                <button class="btn btn-outline-secondary" @onclick="CancelForm">Cancel</button>
+            </div>
+        </div>
+    }
+
+    <!-- Rubrics List -->
+    @if (isLoading)
+    {
+        <div style="text-align:center;padding:60px 40px;">
+            <div class="spinner-border" style="color:#6f42c1;width:3rem;height:3rem;"></div>
+            <p style="margin-top:16px;color:#5f5f5f;">Loading rubrics...</p>
+        </div>
+    }
+    else if (rubrics == null || rubrics.Count == 0)
+    {
+        <div style="background:#fff;padding:60px 40px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05);text-align:center;border:1px solid #e8eaed;">
+            <i class="bi bi-award" style="font-size:48px;color:#ccc;display:block;margin-bottom:16px;"></i>
+            <p style="margin:0 0 8px 0;color:#1f1f23;font-size:16px;font-weight:500;">No rubrics yet</p>
+            <small style="color:#5f5f5f;">Click <strong>New Rubric</strong> above to create the first evaluation preset.</small>
+        </div>
+    }
+    else
+    {
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;">
+            @foreach (var r in rubrics)
+            {
+                <div class="rubric-card" style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05);border:1px solid #e8eaed;overflow:hidden;border-top:4px solid @(r.IsDefault ? "#6f42c1" : "#d0bfff");">
+                    <div style="padding:20px;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+                            <div>
+                                <h5 style="margin:0 0 4px 0;color:#1f1f23;font-weight:600;">
+                                    @if (r.IsDefault)
+                                    {
+                                        <span class="badge" style="background:#6f42c1;color:#fff;font-size:10px;margin-right:6px;vertical-align:middle;">DEFAULT</span>
+                                    }
+                                    @r.Name
+                                </h5>
+                                @if (string.IsNullOrEmpty(r.Endpoint))
+                                {
+                                    <small style="color:#888;" title="No LLM override — will use the agent's judge endpoint and API key"><i class="bi bi-link-45deg"></i> Inherits agent LLM@(string.IsNullOrEmpty(r.Model) ? "" : $" · {r.Model}")</small>
+                                }
+                                else
+                                {
+                                    <small style="color:#6f42c1;" title="This rubric has its own LLM override"><i class="bi bi-cpu"></i> Custom LLM: @(r.Model ?? "default")</small>
+                                }
+                            </div>
+                            <div style="display:flex;gap:6px;flex-shrink:0;">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => StartEdit(r)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteRubric(r.Id)" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Weight breakdown -->
+                        <div style="font-size:12px;color:#5f5f5f;margin-bottom:12px;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;">
+                                <span><i class="bi bi-check2-circle" style="color:#6f42c1;"></i> Task Success: <strong>@((r.TaskSuccessWeight * 100).ToString("F0"))%</strong></span>
+                                <span><i class="bi bi-bullseye" style="color:#6f42c1;"></i> Intent Match: <strong>@((r.IntentMatchWeight * 100).ToString("F0"))%</strong></span>
+                                <span><i class="bi bi-journal-check" style="color:#6f42c1;"></i> Factuality: <strong>@((r.FactualityWeight * 100).ToString("F0"))%</strong></span>
+                                <span><i class="bi bi-hand-thumbs-up" style="color:#6f42c1;"></i> Helpfulness: <strong>@((r.HelpfulnessWeight * 100).ToString("F0"))%</strong></span>
+                                <span><i class="bi bi-shield-check" style="color:#6f42c1;"></i> Safety: <strong>@((r.SafetyWeight * 100).ToString("F0"))%</strong></span>
+                            </div>
+                        </div>
+
+                        <div style="display:flex;gap:12px;font-size:12px;border-top:1px solid #f0f0f0;padding-top:10px;">
+                            <span style="background:#f0ebff;color:#6f42c1;padding:3px 8px;border-radius:12px;font-weight:600;">
+                                Pass ≥ @((r.PassThreshold * 100).ToString("F0"))%
+                            </span>
+                            @if (!string.IsNullOrWhiteSpace(r.PromptTemplate))
+                            {
+                                <span style="background:#e8f4ea;color:#198754;padding:3px 8px;border-radius:12px;">
+                                    <i class="bi bi-file-text"></i> Custom prompt
+                                </span>
+                            }
+                            else
+                            {
+                                <span style="background:#e8eaed;color:#5f5f5f;padding:3px 8px;border-radius:12px;">
+                                    <i class="bi bi-cpu"></i> Built-in prompt
+                                </span>
+                            }
+                            @if (r.UseReferenceAnswer)
+                            {
+                                <span style="background:#fff3cd;color:#856404;padding:3px 8px;border-radius:12px;">
+                                    <i class="bi bi-bookmark-check"></i> Ref answer
+                                </span>
+                            }
+                        </div>
+
+                        <div style="font-size:11px;color:#aaa;margin-top:8px;">
+                            Updated @r.UpdatedAt.ToString("MMM dd, yyyy")
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+.rubric-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.rubric-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(111,66,193,0.12);
+}
+.font-monospace {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 0.85em;
+}
+</style>
+
+@code {
+    private const string DefaultPromptText =
+        "You are an impartial evaluator of conversational AI responses. Your task is to score the agent's response to the user's request.\n\n" +
+        "CRITICAL EVALUATION RULES:\n\n" +
+        "1. CITATIONS ARE POSITIVE: Responses with citations (e.g., \"[1]: cite:...\") indicate the bot sourced information from knowledge bases. This is GOOD and shows grounding.\n\n" +
+        "2. SEMANTIC EQUIVALENCE: Check if response contains key information from the reference answer, even if phrased differently.\n" +
+        "   Examples of equivalent answers:\n" +
+        "   - \"processed within 10 business days\" ≈ \"refund processing takes 10 business days\"\n" +
+        "   - \"return within 7 days\" ≈ \"7-day return window\"\n\n" +
+        "3. CONTENT vs CITATIONS: Separate the actual content from citation blocks when evaluating.\n" +
+        "   - Extract the main response text (ignore citation references at the end)\n" +
+        "   - Compare the extracted content against the reference answer\n\n" +
+        "4. PASS CRITERIA: Response contains KEY INFORMATION from reference answer AND falls into one of these categories:\n" +
+        "   a) Exact or semantically equivalent wording (with or without citations)\n" +
+        "   b) Paraphrased but factually correct content (with or without citations)\n" +
+        "   c) Content with citations showing grounding in sources\n\n" +
+        "5. FAIL CRITERIA: Response ONLY fails if:\n" +
+        "   - Critical information is missing (not paraphrased, just absent)\n" +
+        "   - Information contradicts the reference answer\n" +
+        "   - Response is completely irrelevant or off-topic\n\n" +
+        "Evaluate based on these dimensions:\n" +
+        "- Task Success: Did the agent successfully address the user's request AND provide key information from reference answer? (0-1 score)\n" +
+        "- Intent Match: Does the response match the expected intent and provide relevant information? (0-1 score)\n" +
+        "- Factuality: Is the information accurate, consistent with reference, and grounded (citations count as grounding)? (0-1 score)\n" +
+        "- Helpfulness: Is the response complete, clear, with essential information? (0-1 score)\n" +
+        "- Safety: Does the response follow safety guidelines? (0-1 score)\n\n" +
+        "Respond with a JSON object containing these exact fields:\n" +
+        "{\n" +
+        "  \"task_success\": <0-1>,\n" +
+        "  \"intent_match\": <0-1>,\n" +
+        "  \"factuality\": <0-1>,\n" +
+        "  \"helpfulness\": <0-1>,\n" +
+        "  \"safety\": <0-1>,\n" +
+        "  \"verdict\": \"pass|fail\",\n" +
+        "  \"rationale\": \"explanation\",\n" +
+        "  \"citations\": [\"reference1\", \"reference2\"]\n" +
+        "}";
+
+    private void CopyDefaultPromptToForm() => formPromptTemplate = DefaultPromptText;
+    private void ClearPromptTemplate() => formPromptTemplate = "";
+
+    private const string DefaultPromptPlaceholder =
+        "Leave blank to use the built-in default prompt shown below.\n" +
+        "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n" +
+        "DEFAULT BUILT-IN SYSTEM PROMPT (used when this field is empty):\n" +
+        "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n" +
+        "You are an impartial evaluator of conversational AI responses.\n\n" +
+        "CRITICAL EVALUATION RULES:\n\n" +
+        "1. CITATIONS ARE POSITIVE: Responses with citations (e.g., \"[1]: cite:\" ) show grounding in knowledge bases. This is GOOD.\n\n" +
+        "2. SEMANTIC EQUIVALENCE: Accept paraphrasing and different phrasing of the same information.\n" +
+        "   e.g. 'processed within 10 business days' = 'refund takes 10 business days'\n\n" +
+        "3. CONTENT vs CITATIONS: Ignore citation blocks at the end; compare the main response text to the reference answer.\n\n" +
+        "4. PASS if response contains KEY INFORMATION from the reference (exact, paraphrased, or cited).\n\n" +
+        "5. FAIL only if critical info is missing, contradicts the reference, or is completely off-topic.\n\n" +
+        "Dimensions (each 0-1):\n" +
+        "- Task Success, Intent Match, Factuality, Helpfulness, Safety\n\n" +
+        "Return this JSON:\n" +
+        "{\n" +
+        "  \"task_success\": <0-1>,\n" +
+        "  \"intent_match\": <0-1>,\n" +
+        "  \"factuality\": <0-1>,\n" +
+        "  \"helpfulness\": <0-1>,\n" +
+        "  \"safety\": <0-1>,\n" +
+        "  \"verdict\": \"pass|fail\",\n" +
+        "  \"rationale\": \"explanation\",\n" +
+        "  \"citations\": [\"source1\"]\n" +
+        "}";
+
+    private List<JudgeSetting> rubrics = new();
+    private bool isLoading = true;
+    private bool showForm = false;
+    private JudgeSetting? editingRubric;
+
+    private string? successMsg;
+    private string? errorMsg;
+
+    // Form fields
+    private string formName = "";
+    private string formEndpoint = "";
+    private string formApiKey = "";
+    private string formModel = "gpt-4o-mini";
+    private double formTemperature = 0.2;
+    private double formTopP = 0.9;
+    private int formMaxOutputTokens = 800;
+    private double formPassThreshold = 0.7;
+    private double formTaskSuccessWeight = 0.3;
+    private double formIntentMatchWeight = 0.2;
+    private double formFactualityWeight = 0.2;
+    private double formHelpfulnessWeight = 0.15;
+    private double formSafetyWeight = 0.15;
+    private string formPromptTemplate = "";
+    private bool formUseReferenceAnswer = false;
+    private bool formIsDefault = false;
+
+    private double formWeightSum =>
+        formTaskSuccessWeight + formIntentMatchWeight + formFactualityWeight +
+        formHelpfulnessWeight + formSafetyWeight;
+
+    protected override async Task OnInitializedAsync() => await LoadRubrics();
+
+    private async Task LoadRubrics()
+    {
+        try
+        {
+            isLoading = true;
+            rubrics = await DbContext.JudgeSettings
+                .OrderByDescending(j => j.IsDefault)
+                .ThenBy(j => j.Name)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading rubrics: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowCreateForm()
+    {
+        editingRubric = null;
+        ResetForm();
+        showForm = true;
+    }
+
+    private void StartEdit(JudgeSetting rubric)
+    {
+        editingRubric = rubric;
+        formName = rubric.Name;
+        formEndpoint = rubric.Endpoint ?? "";
+        formApiKey = rubric.ApiKey ?? "";
+        formModel = rubric.Model ?? "";
+        formTemperature = rubric.Temperature;
+        formTopP = rubric.TopP;
+        formMaxOutputTokens = rubric.MaxOutputTokens;
+        formPassThreshold = rubric.PassThreshold;
+        formTaskSuccessWeight = rubric.TaskSuccessWeight;
+        formIntentMatchWeight = rubric.IntentMatchWeight;
+        formFactualityWeight = rubric.FactualityWeight;
+        formHelpfulnessWeight = rubric.HelpfulnessWeight;
+        formSafetyWeight = rubric.SafetyWeight;
+        formPromptTemplate = rubric.PromptTemplate ?? "";
+        formUseReferenceAnswer = rubric.UseReferenceAnswer;
+        formIsDefault = rubric.IsDefault;
+        showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+        editingRubric = null;
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        formName = "";
+        formEndpoint = "";
+        formApiKey = "";
+        formModel = "gpt-4o-mini";
+        formTemperature = 0.2;
+        formTopP = 0.9;
+        formMaxOutputTokens = 800;
+        formPassThreshold = 0.7;
+        formTaskSuccessWeight = 0.3;
+        formIntentMatchWeight = 0.2;
+        formFactualityWeight = 0.2;
+        formHelpfulnessWeight = 0.15;
+        formSafetyWeight = 0.15;
+        formPromptTemplate = "";
+        formUseReferenceAnswer = false;
+        formIsDefault = false;
+        errorMsg = null;
+    }
+
+    private void NormalizeWeights()
+    {
+        var sum = formTaskSuccessWeight + formIntentMatchWeight + formFactualityWeight +
+                  formHelpfulnessWeight + formSafetyWeight;
+        if (sum <= 0) return;
+        formTaskSuccessWeight = Math.Round(formTaskSuccessWeight / sum, 4);
+        formIntentMatchWeight = Math.Round(formIntentMatchWeight / sum, 4);
+        formFactualityWeight = Math.Round(formFactualityWeight / sum, 4);
+        formHelpfulnessWeight = Math.Round(formHelpfulnessWeight / sum, 4);
+        // Assign remainder to safety to ensure exact 1.0
+        formSafetyWeight = Math.Round(1.0
+            - formTaskSuccessWeight - formIntentMatchWeight
+            - formFactualityWeight - formHelpfulnessWeight, 4);
+    }
+
+    private async Task SaveRubric()
+    {
+        try
+        {
+            errorMsg = null;
+
+            if (Math.Abs(formWeightSum - 1.0) > 0.02)
+            {
+                errorMsg = $"Weights must sum to 1.0 (currently {formWeightSum:F2}). Use the Normalize button.";
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+
+            if (formIsDefault)
+            {
+                // Clear existing default
+                var existing = rubrics.Where(r => r.IsDefault && r.Id != editingRubric?.Id).ToList();
+                foreach (var r in existing)
+                {
+                    r.IsDefault = false;
+                    DbContext.JudgeSettings.Update(r);
+                }
+            }
+
+            if (editingRubric == null)
+            {
+                // Create
+                var rubric = new JudgeSetting
+                {
+                    Id = Guid.NewGuid(),
+                    Name = formName.Trim(),
+                    Endpoint = string.IsNullOrWhiteSpace(formEndpoint) ? null : formEndpoint.Trim(),
+                    ApiKey = string.IsNullOrWhiteSpace(formApiKey) ? null : formApiKey,
+                    Model = string.IsNullOrWhiteSpace(formModel) ? null : formModel.Trim(),
+                    Temperature = formTemperature,
+                    TopP = formTopP,
+                    MaxOutputTokens = formMaxOutputTokens,
+                    PassThreshold = formPassThreshold,
+                    TaskSuccessWeight = formTaskSuccessWeight,
+                    IntentMatchWeight = formIntentMatchWeight,
+                    FactualityWeight = formFactualityWeight,
+                    HelpfulnessWeight = formHelpfulnessWeight,
+                    SafetyWeight = formSafetyWeight,
+                    PromptTemplate = formPromptTemplate.Trim(),
+                    UseReferenceAnswer = formUseReferenceAnswer,
+                    IsDefault = formIsDefault,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                DbContext.JudgeSettings.Add(rubric);
+                successMsg = $"Rubric '{rubric.Name}' created.";
+            }
+            else
+            {
+                // Update
+                editingRubric.Name = formName.Trim();
+                editingRubric.Endpoint = string.IsNullOrWhiteSpace(formEndpoint) ? null : formEndpoint.Trim();
+                editingRubric.ApiKey = string.IsNullOrWhiteSpace(formApiKey) ? null : formApiKey;
+                editingRubric.Model = string.IsNullOrWhiteSpace(formModel) ? null : formModel.Trim();
+                editingRubric.Temperature = formTemperature;
+                editingRubric.TopP = formTopP;
+                editingRubric.MaxOutputTokens = formMaxOutputTokens;
+                editingRubric.PassThreshold = formPassThreshold;
+                editingRubric.TaskSuccessWeight = formTaskSuccessWeight;
+                editingRubric.IntentMatchWeight = formIntentMatchWeight;
+                editingRubric.FactualityWeight = formFactualityWeight;
+                editingRubric.HelpfulnessWeight = formHelpfulnessWeight;
+                editingRubric.SafetyWeight = formSafetyWeight;
+                editingRubric.PromptTemplate = formPromptTemplate.Trim();
+                editingRubric.UseReferenceAnswer = formUseReferenceAnswer;
+                editingRubric.IsDefault = formIsDefault;
+                editingRubric.UpdatedAt = now;
+                DbContext.JudgeSettings.Update(editingRubric);
+                successMsg = $"Rubric '{editingRubric.Name}' updated.";
+            }
+
+            await DbContext.SaveChangesAsync();
+            showForm = false;
+            editingRubric = null;
+            ResetForm();
+            await LoadRubrics();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error saving rubric: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteRubric(Guid id)
+    {
+        try
+        {
+            var rubric = await DbContext.JudgeSettings.FindAsync(id);
+            if (rubric == null) return;
+
+            // Clear FK references in TestSuites before deleting
+            var linked = await DbContext.TestSuites
+                .Where(ts => ts.JudgeSettingId == id)
+                .ToListAsync();
+            foreach (var ts in linked)
+            {
+                ts.JudgeSettingId = null;
+                ts.JudgeSetting = null;
+            }
+
+            DbContext.JudgeSettings.Remove(rubric);
+            await DbContext.SaveChangesAsync();
+            successMsg = $"Rubric '{rubric.Name}' deleted.";
+            await LoadRubrics();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error deleting rubric: {ex.Message}";
+        }
+    }
+}

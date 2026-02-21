@@ -30,6 +30,7 @@ public class Agent
     public string? QuestionGenEndpoint { get; set; }
     public string? QuestionGenApiKey { get; set; }
     public string? QuestionGenModel { get; set; }
+    public string? QuestionGenSystemPrompt { get; set; }
     
     // Metadata
     public bool IsActive { get; set; } = true;

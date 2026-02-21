@@ -138,6 +138,50 @@
                         <textarea class="form-control" @bind="editingSuiteDescription" rows="3"></textarea>
                     </div>
 
+                    <div class="mb-4" style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #6f42c1;">
+                        <h6 style="color: #6f42c1; margin-bottom: 10px;">
+                            <i class="bi bi-award"></i> Judge Configuration
+                            <span title="A rubric defines scoring dimension weights and an optional custom prompt. The LLM used will be the agent's judge LLM unless the rubric specifies its own endpoint and API key." style="cursor:help;color:#888;margin-left:4px;"><i class="bi bi-info-circle"></i></span>
+                        </h6>
+                        <p style="color: #666; font-size: 0.85em; margin-bottom: 10px;">Override the agent's default judge with a suite-specific rubric. Leave blank to use the agent's judge settings.</p>
+                        <select class="form-select" @bind="editingSuiteJudgeSettingId">
+                            <option value="">— Use agent default —</option>
+                            @foreach (var js in availableJudgeSettings)
+                            {
+                                <option value="@js.Id">@js.Name</option>
+                            }
+                        </select>
+                        @if (!string.IsNullOrEmpty(editingSuiteJudgeSettingId) && Guid.TryParse(editingSuiteJudgeSettingId, out var selJsId))
+                        {
+                            var selJs = availableJudgeSettings.FirstOrDefault(j => j.Id == selJsId);
+                            if (selJs != null)
+                            {
+                                <div style="margin-top: 10px; font-size: 0.8em; color: #555; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 10px;">
+                                    <div><strong>Pass threshold:</strong> @(selJs.PassThreshold * 100)%</div>
+                                    @if (!string.IsNullOrEmpty(selJs.Model))
+                                    {
+                                        <div><strong>Model override:</strong> @selJs.Model</div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(selJs.Endpoint))
+                                    {
+                                        <div><strong>LLM:</strong> <span style="color:#6f42c1;">Custom endpoint</span></div>
+                                    }
+                                    else
+                                    {
+                                        <div><strong>LLM:</strong> <span style="color:#888;">Inherits agent judge LLM</span></div>
+                                    }
+                                    <div style="margin-top: 6px; display: flex; gap: 16px; flex-wrap: wrap;">
+                                        <span>Task Success: @(selJs.TaskSuccessWeight * 100)%</span>
+                                        <span>Intent: @(selJs.IntentMatchWeight * 100)%</span>
+                                        <span>Factuality: @(selJs.FactualityWeight * 100)%</span>
+                                        <span>Helpfulness: @(selJs.HelpfulnessWeight * 100)%</span>
+                                        <span>Safety: @(selJs.SafetyWeight * 100)%</span>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+
                     <hr style="border: none; border-top: 1px solid #e8eaed; margin: 24px 0;" />
 
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -395,6 +439,45 @@
                 }
             </div>
 
+            <hr style="margin: 20px 0;" />
+
+            <div class="mb-4" style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #6f42c1;">
+                <h6 style="color: #6f42c1; margin-bottom: 10px;">
+                    <i class="bi bi-award"></i> Judge Configuration (optional)
+                    <span title="A rubric defines scoring dimension weights and an optional custom prompt. The LLM used will be the agent's judge LLM unless the rubric specifies its own endpoint and API key." style="cursor:help;color:#888;margin-left:4px;"><i class="bi bi-info-circle"></i></span>
+                </h6>
+                <p style="color: #666; font-size: 0.85em; margin-bottom: 10px;">Assign a named rubric to this suite. Leave blank to use the agent's default judge settings when running.</p>
+                <select class="form-select" @bind="newSuiteJudgeSettingId">
+                    <option value="">— Use agent default —</option>
+                    @foreach (var js in availableJudgeSettings)
+                    {
+                        <option value="@js.Id">@js.Name</option>
+                    }
+                </select>
+                @if (!string.IsNullOrEmpty(newSuiteJudgeSettingId) && Guid.TryParse(newSuiteJudgeSettingId, out var newSelJsId))
+                {
+                    var newSelJs = availableJudgeSettings.FirstOrDefault(j => j.Id == newSelJsId);
+                    if (newSelJs != null)
+                    {
+                        <div style="margin-top: 10px; font-size: 0.8em; color: #555; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 10px;">
+                            <div><strong>Pass threshold:</strong> @(newSelJs.PassThreshold * 100)%</div>
+                            @if (!string.IsNullOrEmpty(newSelJs.Model))
+                            {
+                                <div><strong>Model override:</strong> @newSelJs.Model</div>
+                            }
+                            @if (!string.IsNullOrEmpty(newSelJs.Endpoint))
+                            {
+                                <div><strong>LLM:</strong> <span style="color:#6f42c1;">Custom endpoint</span></div>
+                            }
+                            else
+                            {
+                                <div><strong>LLM:</strong> <span style="color:#888;">Inherits agent judge LLM</span></div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
             <div class="mb-4">
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" id="generateQuestionsCheck" @bind="newSuiteGenerateQuestions" disabled="@(string.IsNullOrEmpty(newSuiteSelectedAgentId))" />
@@ -456,6 +539,10 @@
                         <div style="font-size: 12px; color: #5f5f5f; margin-bottom: 16px; line-height: 1.6;">
                             <div><i class="bi bi-calendar2" style="margin-right: 6px;"></i>Created: @suite.CreatedAt.ToString("MMM dd, yyyy")</div>
                             <div><i class="bi bi-test" style="margin-right: 6px;"></i>Test Cases: <strong>@(suite.TestCases?.Count ?? 0)</strong></div>
+                            @if (suite.JudgeSetting != null)
+                            {
+                                <div><i class="bi bi-award" style="margin-right: 6px; color: #6f42c1;"></i>Judge: <strong style="color: #6f42c1;">@suite.JudgeSetting.Name</strong></div>
+                            }
                         </div>
                         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                             <button class="btn btn-sm btn-primary" @onclick="() => RunSuite(suite.Id)" disabled="@isRunningSuite">
@@ -515,11 +602,14 @@
     private string? newSuiteSelectedAgentId;
     private bool newSuiteGenerateQuestions = false;
     private int newSuiteQuestionCount = 10;
+    private string? newSuiteJudgeSettingId;
+    private List<JudgeSetting> availableJudgeSettings = new();
 
     private bool showEditModal = false;
     private TestSuite? editingSuite;
     private string editingSuiteName = "";
     private string editingSuiteDescription = "";
+    private string? editingSuiteJudgeSettingId;
     private bool showAddTestCase = false;
     private string newTestCaseName = "";
     private string newTestCaseQuestion = "";
@@ -552,6 +642,7 @@
     {
         await LoadDocumentsForNewSuite();
         await LoadAgentsForNewSuite();
+        await LoadJudgeSettings();
     }
 
     private async Task LoadDocumentsForNewSuite()
@@ -588,6 +679,21 @@
         }
     }
 
+    private async Task LoadJudgeSettings()
+    {
+        try
+        {
+            if (DbContext == null) return;
+            availableJudgeSettings = await DbContext.JudgeSettings
+                .OrderBy(js => js.Name)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error loading judge settings: {ex.Message}";
+        }
+    }
+
     private async Task LoadTestSuites()
     {
         try
@@ -597,6 +703,7 @@
             isLoading = true;
             testSuites = await DbContext.TestSuites
                 .Include(s => s.TestCases)
+                .Include(s => s.JudgeSetting)
                 .OrderByDescending(s => s.CreatedAt)
                 .ToListAsync();
             isLoading = false;
@@ -623,6 +730,7 @@
         newSuiteSelectedAgentId = null;
         newSuiteGenerateQuestions = false;
         newSuiteQuestionCount = 10;
+        newSuiteJudgeSettingId = null;
         errorMsg = "";
     }
 
@@ -676,6 +784,7 @@
                 Id = Guid.NewGuid(),
                 Name = newSuiteName,
                 Description = newSuiteDescription ?? "",
+                JudgeSettingId = Guid.TryParse(newSuiteJudgeSettingId, out var nJsId) ? nJsId : null,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 CreatedBy = "WebUI",
@@ -857,6 +966,7 @@
 
             var suite = await DbContext.TestSuites
                 .Include(s => s.TestCases)
+                .Include(s => s.JudgeSetting)
                 .FirstOrDefaultAsync(s => s.Id == suiteId);
             if (suite == null) return;
 
@@ -886,16 +996,48 @@
                 agent.DirectLineReplyTimeoutSeconds,
                 agent.DirectLineUseWebChannelSecret);
 
-            var judgeSettings = new JudgeSetting
+            // Resolution order: suite rubric (scoring criteria) + agent LLM fallback
+            // If the rubric has its own Endpoint+ApiKey, those override the agent's LLM.
+            // Otherwise the agent's LLM is used with the rubric's scoring criteria.
+            JudgeSetting judgeSettings;
+            if (suite.JudgeSetting != null)
             {
-                Endpoint = agent.JudgeEndpoint,
-                ApiKey = agent.JudgeApiKey,
-                Model = agent.JudgeModel,
-                Temperature = agent.JudgeTemperature,
-                TopP = agent.JudgeTopP,
-                MaxOutputTokens = agent.JudgeMaxOutputTokens,
-                PassThreshold = agent.JudgePassThreshold
-            };
+                var rubricHasLLM = !string.IsNullOrEmpty(suite.JudgeSetting.Endpoint)
+                                   && !string.IsNullOrEmpty(suite.JudgeSetting.ApiKey);
+                judgeSettings = new JudgeSetting
+                {
+                    // Scoring criteria always come from the rubric
+                    Name                = suite.JudgeSetting.Name,
+                    PromptTemplate      = suite.JudgeSetting.PromptTemplate,
+                    TaskSuccessWeight   = suite.JudgeSetting.TaskSuccessWeight,
+                    IntentMatchWeight   = suite.JudgeSetting.IntentMatchWeight,
+                    FactualityWeight    = suite.JudgeSetting.FactualityWeight,
+                    HelpfulnessWeight   = suite.JudgeSetting.HelpfulnessWeight,
+                    SafetyWeight        = suite.JudgeSetting.SafetyWeight,
+                    PassThreshold       = suite.JudgeSetting.PassThreshold,
+                    UseReferenceAnswer  = suite.JudgeSetting.UseReferenceAnswer,
+                    // LLM: use rubric override when endpoint+apiKey are set; otherwise fall back to agent
+                    Endpoint         = rubricHasLLM ? suite.JudgeSetting.Endpoint : agent.JudgeEndpoint,
+                    ApiKey           = rubricHasLLM ? suite.JudgeSetting.ApiKey   : agent.JudgeApiKey,
+                    Model            = !string.IsNullOrEmpty(suite.JudgeSetting.Model) ? suite.JudgeSetting.Model : agent.JudgeModel,
+                    Temperature      = rubricHasLLM ? suite.JudgeSetting.Temperature    : agent.JudgeTemperature,
+                    TopP             = rubricHasLLM ? suite.JudgeSetting.TopP           : agent.JudgeTopP,
+                    MaxOutputTokens  = rubricHasLLM ? suite.JudgeSetting.MaxOutputTokens : agent.JudgeMaxOutputTokens,
+                };
+            }
+            else
+            {
+                judgeSettings = new JudgeSetting
+                {
+                    Endpoint        = agent.JudgeEndpoint,
+                    ApiKey          = agent.JudgeApiKey,
+                    Model           = agent.JudgeModel,
+                    Temperature     = agent.JudgeTemperature,
+                    TopP            = agent.JudgeTopP,
+                    MaxOutputTokens = agent.JudgeMaxOutputTokens,
+                    PassThreshold   = agent.JudgePassThreshold
+                };
+            }
 
             var dlSettings = new DirectLineSettings
             {
@@ -966,12 +1108,15 @@
 
             editingSuite = await DbContext.TestSuites
                 .Include(s => s.TestCases)
+                .Include(s => s.JudgeSetting)
                 .FirstOrDefaultAsync(s => s.Id == suiteId);
 
             if (editingSuite != null)
             {
                 editingSuiteName = editingSuite.Name;
                 editingSuiteDescription = editingSuite.Description ?? "";
+                editingSuiteJudgeSettingId = editingSuite.JudgeSettingId?.ToString();
+                await LoadJudgeSettings();
                 showEditModal = true;
                 showAddTestCase = false;
             }
@@ -997,6 +1142,7 @@
 
             editingSuite.Name = editingSuiteName;
             editingSuite.Description = editingSuiteDescription;
+            editingSuite.JudgeSettingId = Guid.TryParse(editingSuiteJudgeSettingId, out var jsId) ? jsId : null;
             editingSuite.UpdatedAt = DateTime.UtcNow;
 
             await DbContext.SaveChangesAsync();
@@ -1066,7 +1212,8 @@
                 DocumentContent = documentContent,
                 NumberOfQuestions = 10,
                 Domain = editingSuite.Name,
-                ExistingQuestions = allExistingQuestions
+                ExistingQuestions = allExistingQuestions,
+                SystemPromptOverride = settings.SystemPrompt
             };
 
             var aiQuestions = await QuestionGenerationService.GenerateQuestionsAsync(
@@ -1177,7 +1324,8 @@
                 DocumentContent = documentContent,
                 NumberOfQuestions = Math.Max(1, aiQuestionCount),
                 Domain = editingSuite.Name,
-                ExistingQuestions = replaceExisting ? null : existingQuestions
+                ExistingQuestions = replaceExisting ? null : existingQuestions,
+                SystemPromptOverride = settings.SystemPrompt
             };
 
             var aiQuestions = await QuestionGenerationService.GenerateQuestionsAsync(
@@ -1274,13 +1422,13 @@
         return content;
     }
 
-    private async Task<(string Endpoint, string ApiKey, string Model)> LoadQuestionGenSettings()
+    private async Task<(string Endpoint, string ApiKey, string Model, string? SystemPrompt)> LoadQuestionGenSettings()
     {
         try
         {
             if (!File.Exists(CONFIG_FILE))
             {
-                return (string.Empty, string.Empty, string.Empty);
+                return (string.Empty, string.Empty, string.Empty, null);
             }
 
             var json = await File.ReadAllTextAsync(CONFIG_FILE);
@@ -1288,18 +1436,26 @@
 
             if (config?.Judge == null)
             {
-                return (string.Empty, string.Empty, string.Empty);
+                return (string.Empty, string.Empty, string.Empty, null);
+            }
+
+            string? systemPrompt = null;
+            if (DbContext != null)
+            {
+                var gs = await DbContext.GlobalQuestionGenerationSettings.FirstOrDefaultAsync();
+                systemPrompt = gs?.SystemPrompt;
             }
 
             return (
                 config.Judge.Endpoint,
                 config.Judge.Key,
-                string.IsNullOrWhiteSpace(config.Judge.Model) ? "gpt-4o-mini" : config.Judge.Model
+                string.IsNullOrWhiteSpace(config.Judge.Model) ? "gpt-4o-mini" : config.Judge.Model,
+                systemPrompt
             );
         }
         catch
         {
-            return (string.Empty, string.Empty, string.Empty);
+            return (string.Empty, string.Empty, string.Empty, null);
         }
     }
 
