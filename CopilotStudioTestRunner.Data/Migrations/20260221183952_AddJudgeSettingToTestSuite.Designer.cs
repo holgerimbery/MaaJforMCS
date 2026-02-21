@@ -3,6 +3,7 @@ using System;
 using CopilotStudioTestRunner.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CopilotStudioTestRunner.Data.Migrations
 {
     [DbContext(typeof(TestRunnerDbContext))]
-    partial class TestRunnerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260221183952_AddJudgeSettingToTestSuite")]
+    partial class AddJudgeSettingToTestSuite
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
@@ -100,9 +103,6 @@ namespace CopilotStudioTestRunner.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("QuestionGenModel")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("QuestionGenSystemPrompt")
                         .HasColumnType("TEXT");
 
                     b.PrimitiveCollection<string>("Tags")
@@ -246,9 +246,6 @@ namespace CopilotStudioTestRunner.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("SystemPrompt")
-                        .HasColumnType("TEXT");
-
                     b.Property<double>("Temperature")
                         .HasColumnType("REAL");
 
@@ -274,12 +271,14 @@ namespace CopilotStudioTestRunner.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ApiKey")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Endpoint")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<double>("FactualityWeight")
@@ -298,6 +297,7 @@ namespace CopilotStudioTestRunner.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Model")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")

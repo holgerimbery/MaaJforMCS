@@ -15,7 +15,11 @@ public class TestSuite
     // Configuration
     public int DefaultTimeoutSeconds { get; set; } = 30;
     public int MaxRetries { get; set; } = 2;
-    
+
+    // Optional per-suite judge override (null = use agent's judge config)
+    public Guid? JudgeSettingId { get; set; }
+    public JudgeSetting? JudgeSetting { get; set; }
+
     // Relationships
     public ICollection<TestCase> TestCases { get; set; } = [];
     public ICollection<Run> Runs { get; set; } = [];

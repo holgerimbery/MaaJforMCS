@@ -24,6 +24,7 @@ Test multiple agents simultaneously across environments, evaluate responses with
 - **Environment & Agent Discovery** — browse all Power Platform environments and import Copilot Studio agents automatically via Azure CLI or service principal
 - **Direct Line Integration** — WebSocket or polling transport with full conversation lifecycle management
 - **Model-as-a-Judge Evaluation** — Azure AI Foundry LLM scores responses on 5 dimensions (task success, intent match, factuality, helpfulness, safety)
+- **Configurable Judge & Question-Generation Prompts** — edit the built-in system prompts directly in the UI (Settings and Agents pages) with per-agent override support; no code changes needed
 - **Document-Driven Test Generation** — upload PDFs or text files and let AI generate test cases automatically
 - **Setup Wizard** — guided first-run agent and test suite creation
 - **CLI for CI/CD** — exit codes, JSON output, dry-run support

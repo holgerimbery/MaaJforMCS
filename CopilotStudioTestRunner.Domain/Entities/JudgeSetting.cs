@@ -19,15 +19,15 @@ public class JudgeSetting
     public double PassThreshold { get; set; } = 0.7;
     public bool UseReferenceAnswer { get; set; } = false;
     
-    // Model parameters
-    public string Model { get; set; } = "gpt-4o-mini";
+    // Model parameters — null means "inherit from the agent's judge LLM"
+    public string? Model { get; set; }
     public double Temperature { get; set; } = 0.2;
     public double TopP { get; set; } = 0.9;
     public int MaxOutputTokens { get; set; } = 800;
     
-    // Azure AI Foundry settings
-    public string Endpoint { get; set; } = string.Empty;
-    public string ApiKey { get; set; } = string.Empty;
+    // Azure AI Foundry settings — null/empty means "inherit from the agent's judge LLM"
+    public string? Endpoint { get; set; }
+    public string? ApiKey { get; set; }
     
     public bool IsDefault { get; set; } = false;
 }

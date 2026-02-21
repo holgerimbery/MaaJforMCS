@@ -132,6 +132,12 @@ public class TestRunnerDbContext : DbContext
             .HasMaxLength(255)
             .IsRequired();
 
+        modelBuilder.Entity<TestSuite>()
+            .HasOne(ts => ts.JudgeSetting)
+            .WithMany()
+            .HasForeignKey(ts => ts.JudgeSettingId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         modelBuilder.Entity<TestCase>()
             .Property(tc => tc.Name)
             .HasMaxLength(255)

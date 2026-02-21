@@ -103,7 +103,8 @@
                 <div class="col-md-6">
                     <div style="border-top: 1px solid #e8eaed; padding-top: 16px; margin-top: 16px;">
                         <h6 style="color: #0066cc; margin-bottom: 12px;">
-                            <i class="bi bi-scale-balance"></i> Judge Configuration
+                            <i class="bi bi-cpu"></i> Default Judge LLM
+                            <span title="The LLM used to evaluate test responses for this agent. Applies to every run unless a test suite assigns a rubric that specifies its own endpoint and API key." style="cursor:help;color:#888;margin-left:4px;"><i class="bi bi-info-circle"></i></span>
                         </h6>
 
                         <div class="form-check mb-3">
@@ -115,17 +116,26 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Endpoint <span style="color: red;">*</span></label>
+                            <label class="form-label">
+                                Endpoint <span style="color: red;">*</span>
+                                <span title="Azure AI Foundry or Azure OpenAI endpoint URL, e.g. https://resource.openai.azure.com/. Used for all judge evaluations on this agent." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                            </label>
                             <input type="text" class="form-control" @bind="newAgent.JudgeEndpoint" placeholder="https://..." disabled="@useGlobalJudgeForNew" />
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">API Key <span style="color: red;">*</span></label>
+                            <label class="form-label">
+                                API Key <span style="color: red;">*</span>
+                                <span title="Azure OpenAI API key corresponding to the endpoint above. Keep this secure — it is stored encrypted." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                            </label>
                             <input type="password" class="form-control" @bind="newAgent.JudgeApiKey" placeholder="API Key" disabled="@useGlobalJudgeForNew" />
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Model</label>
+                            <label class="form-label">
+                                Model
+                                <span title="Deployment name or model ID, e.g. gpt-4o-mini. A rubric preset assigned to a test suite can override this." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                            </label>
                             <input type="text" class="form-control" @bind="newAgent.JudgeModel" placeholder="gpt-4o-mini" disabled="@useGlobalJudgeForNew" />
                         </div>
                     </div>
@@ -158,6 +168,31 @@
                         <div class="mb-3">
                             <label class="form-label">Model</label>
                             <input type="text" class="form-control" @bind="newAgent.QuestionGenModel" placeholder="Leave empty to use global default" disabled="@useGlobalQuestionGenForNew" />
+                        </div>
+
+                        <div class="mb-3">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                <label class="form-label mb-0">
+                                    System Prompt Override
+                                    <span title="Custom system prompt for this agent's question generation. Leave empty to use the global default prompt." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                                </label>
+                                @if (string.IsNullOrWhiteSpace(newAgent.QuestionGenSystemPrompt))
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="LoadDefaultQGenPromptToNew" disabled="@useGlobalQuestionGenForNew">
+                                        <i class="bi bi-clipboard-plus"></i> Load default to edit
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-warning" @onclick="ClearNewAgentQGenPrompt">
+                                        <i class="bi bi-x-circle"></i> Revert to built-in
+                                    </button>
+                                }
+                            </div>
+                            <textarea class="form-control" @bind="newAgent.QuestionGenSystemPrompt" rows="8"
+                                placeholder="Leave empty to use the global default system prompt"
+                                disabled="@useGlobalQuestionGenForNew"
+                                style="font-family: monospace; font-size: 0.82em;"></textarea>
                         </div>
                     </div>
                 </div>
@@ -262,7 +297,8 @@
                     <div class="row">
                         <div class="col-md-6">
                             <h6 style="color: #0066cc; margin-bottom: 12px;">
-                                <i class="bi bi-check-circle"></i> Judge
+                                <i class="bi bi-cpu"></i> Default Judge LLM
+                                <span title="The LLM used to evaluate test responses for this agent. Applies to every run unless a test suite assigns a rubric that specifies its own endpoint and API key." style="cursor:help;color:#888;margin-left:4px;"><i class="bi bi-info-circle"></i></span>
                             </h6>
 
                             <div class="form-check mb-3">
@@ -274,22 +310,34 @@
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Endpoint <span style="color: red;">*</span></label>
+                                <label class="form-label">
+                                    Endpoint <span style="color: red;">*</span>
+                                    <span title="Azure AI Foundry or Azure OpenAI endpoint URL. Used for all judge evaluations on this agent." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                                </label>
                                 <input type="text" class="form-control" @bind="editingAgent.JudgeEndpoint" placeholder="https://..." disabled="@useGlobalJudgeForEdit" />
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">API Key <span style="color: red;">*</span></label>
+                                <label class="form-label">
+                                    API Key <span style="color: red;">*</span>
+                                    <span title="Azure OpenAI API key for the endpoint above." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                                </label>
                                 <input type="password" class="form-control" @bind="editingAgent.JudgeApiKey" placeholder="API Key" disabled="@useGlobalJudgeForEdit" />
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Model</label>
+                                <label class="form-label">
+                                    Model
+                                    <span title="Deployment name, e.g. gpt-4o-mini. A rubric assigned to a test suite can override this." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                                </label>
                                 <input type="text" class="form-control" @bind="editingAgent.JudgeModel" placeholder="gpt-4o-mini" disabled="@useGlobalJudgeForEdit" />
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Pass Threshold (0-1)</label>
+                                <label class="form-label">
+                                    Pass Threshold (0–1)
+                                    <span title="Weighted score (0–100%) a test must reach to be marked PASS. Can be overridden per rubric preset." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                                </label>
                                 <input type="number" class="form-control" @bind="editingAgent.JudgePassThreshold" min="0" max="1" step="0.01" />
                             </div>
                         </div>
@@ -320,6 +368,31 @@
                             <div class="mb-3">
                                 <label class="form-label">Model</label>
                                 <input type="text" class="form-control" @bind="editingAgent.QuestionGenModel" placeholder="Leave empty to use global default" disabled="@useGlobalQuestionGenForEdit" />
+                            </div>
+
+                            <div class="mb-3">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                    <label class="form-label mb-0">
+                                        System Prompt Override
+                                        <span title="Custom system prompt for this agent's question generation. Leave empty to use the global default prompt." style="cursor:help;color:#888;"><i class="bi bi-info-circle"></i></span>
+                                    </label>
+                                    @if (string.IsNullOrWhiteSpace(editingAgent.QuestionGenSystemPrompt))
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="LoadDefaultQGenPromptToEdit" disabled="@useGlobalQuestionGenForEdit">
+                                            <i class="bi bi-clipboard-plus"></i> Load default to edit
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-warning" @onclick="ClearEditAgentQGenPrompt">
+                                            <i class="bi bi-x-circle"></i> Revert to built-in
+                                        </button>
+                                    }
+                                </div>
+                                <textarea class="form-control" @bind="editingAgent.QuestionGenSystemPrompt" rows="8"
+                                    placeholder="Leave empty to use the global default system prompt"
+                                    disabled="@useGlobalQuestionGenForEdit"
+                                    style="font-family: monospace; font-size: 0.82em;"></textarea>
                             </div>
                         </div>
                     </div>
@@ -570,6 +643,7 @@
                 newAgent.QuestionGenEndpoint = null;
                 newAgent.QuestionGenApiKey = null;
                 newAgent.QuestionGenModel = null;
+                newAgent.QuestionGenSystemPrompt = null;
             }
             else if (string.IsNullOrWhiteSpace(newAgent.QuestionGenEndpoint) ||
                      string.IsNullOrWhiteSpace(newAgent.QuestionGenApiKey) ||
@@ -723,6 +797,7 @@
                 editingAgent.QuestionGenEndpoint = null;
                 editingAgent.QuestionGenApiKey = null;
                 editingAgent.QuestionGenModel = null;
+                editingAgent.QuestionGenSystemPrompt = null;
             }
             else if (string.IsNullOrWhiteSpace(editingAgent.QuestionGenEndpoint) ||
                      string.IsNullOrWhiteSpace(editingAgent.QuestionGenApiKey) ||
@@ -798,6 +873,7 @@
         newAgent.QuestionGenEndpoint = null;
         newAgent.QuestionGenApiKey = null;
         newAgent.QuestionGenModel = null;
+        newAgent.QuestionGenSystemPrompt = null;
     }
 
     private void ApplyGlobalJudgeToEditAgent()
@@ -870,6 +946,48 @@
                 editingAgent.QuestionGenModel = null;
             }
         }
+    }
+
+    private const string AgentQGenDefaultPromptText =
+        "You are an expert test designer for conversational AI agents. Your task is to generate high-quality test questions " +
+        "from document content that will thoroughly test an AI agent's understanding and capabilities.\n\n" +
+        "{domainContext}\n\n" +
+        "Generate questions that:\n" +
+        "1. **Cover diverse aspects**: Don't just focus on one topic - spread questions across different sections and concepts\n" +
+        "2. **Vary in complexity**: Mix factual recall, reasoning, and application questions\n" +
+        "3. **Test edge cases**: Include questions about specific details, ambiguous scenarios, and corner cases\n" +
+        "4. **Are realistic**: Frame questions as a real user would ask them\n" +
+        "5. **Have clear answers**: Each question should have a verifiable answer from the document\n\n" +
+        "Question types to include:\n" +
+        "- Direct factual questions (What/When/Where)\n" +
+        "- Conceptual understanding (How/Why)\n" +
+        "- Comparison questions (Difference between X and Y)\n" +
+        "- Application questions (How would I do X?)\n" +
+        "- Troubleshooting/problem-solving questions\n\n" +
+        "For each question, provide question / expected_answer / expected_intent / expected_entities / context / rationale.\n\n" +
+        "Respond with a JSON array:\n" +
+        "[{ \"question\": \"...\", \"expected_answer\": \"...\", \"expected_intent\": \"...\", \"expected_entities\": [\"...\"], \"context\": \"...\", \"rationale\": \"...\" }]";
+
+    private void LoadDefaultQGenPromptToNew()
+    {
+        newAgent.QuestionGenSystemPrompt = AgentQGenDefaultPromptText;
+    }
+
+    private void ClearNewAgentQGenPrompt()
+    {
+        newAgent.QuestionGenSystemPrompt = null;
+    }
+
+    private void LoadDefaultQGenPromptToEdit()
+    {
+        if (editingAgent != null)
+            editingAgent.QuestionGenSystemPrompt = AgentQGenDefaultPromptText;
+    }
+
+    private void ClearEditAgentQGenPrompt()
+    {
+        if (editingAgent != null)
+            editingAgent.QuestionGenSystemPrompt = null;
     }
 
     private class GlobalConfigData

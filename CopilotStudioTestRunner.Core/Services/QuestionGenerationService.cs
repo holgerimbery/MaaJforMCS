@@ -24,6 +24,8 @@ public class QuestionGenerationRequest
     public int NumberOfQuestions { get; set; } = 5;
     public string? Domain { get; set; }
     public List<string>? ExistingQuestions { get; set; }
+    /// <summary>Custom system prompt override. Null = use built-in default.</summary>
+    public string? SystemPromptOverride { get; set; }
 }
 
 /// <summary>
@@ -91,6 +93,10 @@ public class AzureOpenAIQuestionGenerationService : IQuestionGenerationService
 
     private string BuildSystemPrompt(QuestionGenerationRequest request)
     {
+        // Use custom override if provided
+        if (!string.IsNullOrWhiteSpace(request.SystemPromptOverride))
+            return request.SystemPromptOverride;
+
         var domainContext = !string.IsNullOrEmpty(request.Domain)
             ? $"The domain/topic is: {request.Domain}"
             : "Analyze the domain based on the document content.";
